@@ -44,6 +44,7 @@ Engine and host agent (Claude vs Codex) are publish-time render choices, not sep
   - `GOOGLE_API_KEY` — [Google AI Studio](https://aistudio.google.com/) for Gemini image generation
   - `XAI_API_KEY` — [xAI Grok](https://console.x.ai/home) for image generation and animated-sprite video (either image key is enough)
   - `TRIPO_API_KEY` — [Tripo](https://developers.tripo3d.ai/) for 3D generation (used by the `tripo` CLI)
+  - `ELEVENLABS_API_KEY` — [ElevenLabs](https://elevenlabs.io/app/settings/api-keys) for voices, sound effects, and music (optional)
 - System packages from [setup.md](setup.md): `vulkan-tools`, `xvfb`, `ffmpeg`, `imagemagick`, plus platform-specific extras
 - Tested on Ubuntu, Debian, and macOS
 - Claude Code or Codex

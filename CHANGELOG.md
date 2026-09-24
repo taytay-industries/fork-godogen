@@ -5,6 +5,11 @@
 - Capture records OGV by default: Godot encodes movie frames on the main thread, and at 1080p Theora takes ~20 ms/frame against ~230 ms for PNG on Godot 4.7, at no visible loss. The tool re-times clips to constant fps, since Theora's empty repeat packets otherwise hide frozen spans.
 - Capture size comes from `--size` through a temporary `override.cfg` (`window_width_override`); `--resolution` never reached the movie writer.
 
+**2026-09-24 — Audio (ElevenLabs)**
+- `asset-gen` generates audio through ElevenLabs: `asset_gen.py speech` (text to speech, `eleven_v3` by default), `sfx` (sound effects, optionally seamless loops), `music` (`music_v2`, optionally instrumental), and `voice-change` (re-voice a recorded performance), plus `voices` to cast and `audio-status` to check the key and credits left. Outputs are `.ogg`, `.wav`, or `.mp3` by extension; each call reports the credits it actually used.
+- `asset-gen/audio.md` covers casting a voice once per character, one file per dialogue line with neighbouring-line context, one-shot vs loop sound effects, take variation for repeated sounds, and music that plays under gameplay.
+- `ELEVENLABS_API_KEY` is optional; the SDK is in `asset-gen/tools/requirements.txt`.
+
 **2026-09-22 — Local image generation, current image models**
 - Added local image generation: when `qwen-image` is on PATH, `asset-gen` runs Qwen-Image-2.1 on the machine's GPU for free, so simple images (textures, props, icons, UI, backgrounds, in-image text) go there before the paid APIs; `qwen-image rgba` outputs real alpha with no matting. `setup.md` carries a brief for building the command on each machine.
 - Image generation uses Gemini 3.1 Flash Image and Grok Imagine Image 2.0 (medium quality) as equals — a side-by-side on a 3D-ready character and a dense composition came out even. `asset_gen.py` uses whichever key is set, Gemini by default for speed (~10 s vs 1–2 min); quality-critical assets are generated on both and the better kept.

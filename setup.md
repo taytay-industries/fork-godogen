@@ -207,6 +207,7 @@ Set in environment:
 
 Either image key is enough; with both, Gemini is the default and quality-critical assets are generated on each.
 - `TRIPO_API_KEY` — image-to-3D conversion via the `tripo` CLI (`npm install -g tripo-cli`, Node 20+)
+- `ELEVENLABS_API_KEY` — voices, sound effects, and music (optional). Give the key "User: Read" permission too, so `asset_gen.py audio-status` can show credits left and each call can report what it cost.
 
 ## WSL2 (Windows)
 

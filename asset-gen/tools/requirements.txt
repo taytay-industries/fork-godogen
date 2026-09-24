@@ -1,5 +1,6 @@
 xai-sdk>=1.19
 google-genai
+elevenlabs
 requests
 numpy
 pillow

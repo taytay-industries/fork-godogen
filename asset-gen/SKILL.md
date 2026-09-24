@@ -1,16 +1,16 @@
 ---
 name: asset-gen
 display_name: Asset Generator
-short_description: Generate game images, GLB 3D models, rigged characters, and animated sprites
-default_prompt: "Use ${ASSET_SKILL_COMMAND} to generate images, 3D models, or animated sprites for this game."
+short_description: Generate game images, GLB 3D models, rigged characters, animated sprites, voices, sound effects, and music
+default_prompt: "Use ${ASSET_SKILL_COMMAND} to generate images, 3D models, animated sprites, or audio for this game."
 allow_implicit_invocation: true
 description: |
-  Generate visual assets from text prompts: PNG images (Gemini / xAI Grok, or local Qwen-Image when installed), GLB 3D models (Tripo CLI), rigged characters, retargeted animations, and frame-by-frame animated sprites, plus background removal. Use whenever a game needs generated art.
+  Generate visual assets from text prompts: PNG images (Gemini / xAI Grok, or local Qwen-Image when installed), GLB 3D models (Tripo CLI), rigged characters, retargeted animations, and frame-by-frame animated sprites, plus background removal; voice lines, sound effects, music, and voice conversion (ElevenLabs). Use whenever a game needs generated art or audio.
 ---
 
 # Asset Generator
 
-Generate PNG images (Gemini or xAI Grok) and GLB 3D models (Tripo) from text prompts. These are paid APIs — every call costs real money. The free exception is `qwen-image`, a local GPU generator some machines have. Image tools live at `${ASSET_GEN_SKILL_DIR}/tools/`; 3D goes through the `tripo` CLI. Run from the project root and keep runtime-loaded outputs under `${RUNTIME_ASSET_DIR}/`.
+Generate PNG images (Gemini or xAI Grok), GLB 3D models (Tripo), and audio (ElevenLabs) from text prompts. These are paid APIs — every call costs real money. The free exception is `qwen-image`, a local GPU generator some machines have. Image tools live at `${ASSET_GEN_SKILL_DIR}/tools/`; 3D goes through the `tripo` CLI. Run from the project root and keep runtime-loaded outputs under `${RUNTIME_ASSET_DIR}/`.
 
 ## Models
 
@@ -105,9 +105,13 @@ victory_celebration volleyball wait walk warm_up wave_goodbye_01/02
 
 Presets are generic stock clips. **Important:** when gameplay needs a custom humanoid move set (state machines, root-motion locomotion, moves not in this list), read `${ASSET_GEN_SKILL_DIR}/motion.md`.
 
+## Audio
+
+Voice lines, sound effects, music, and voice conversion come from ElevenLabs through `asset_gen.py speech | sfx | music | voice-change`, with `voices` to cast and `audio-status` to check the key. Read `${ASSET_GEN_SKILL_DIR}/audio.md` before generating any.
+
 ## Costs
 
-Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model, ~25 to rig, ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate.
+Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model, ~25 to rig, ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate. ElevenLabs bills credits from the plan's monthly quota; audio commands report the `credits` each call used, and `audio-status` shows what is left.
 
 ## Output and logging
 
