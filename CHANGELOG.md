@@ -1,5 +1,10 @@
 # Changelog
 
+**2026-09-24 — Godot capture tool**
+- Published Godot repos carry `tools/capture.py`, a uv script that records and reviews in one step: `record` builds, imports, and records with the movie writer, then prints the renderer, error lines, and a review — a labeled contact sheet, a motion sheet (motion graph plus changed pixels in red against 6 frames earlier), `FROZEN` / `DARK` / `POP` spans, `video.mp4`, and `report.json`. `frames`, `diff`, `review`, and `export` cover follow-up inspection.
+- Capture records OGV by default: Godot encodes movie frames on the main thread, and at 1080p Theora takes ~20 ms/frame against ~230 ms for PNG on Godot 4.7, at no visible loss. The tool re-times clips to constant fps, since Theora's empty repeat packets otherwise hide frozen spans.
+- Capture size comes from `--size` through a temporary `override.cfg` (`window_width_override`); `--resolution` never reached the movie writer.
+
 **2026-09-22 — Local image generation, current image models**
 - Added local image generation: when `qwen-image` is on PATH, `asset-gen` runs Qwen-Image-2.1 on the machine's GPU for free, so simple images (textures, props, icons, UI, backgrounds, in-image text) go there before the paid APIs; `qwen-image rgba` outputs real alpha with no matting. `setup.md` carries a brief for building the command on each machine.
 - Image generation uses Gemini 3.1 Flash Image and Grok Imagine Image 2.0 (medium quality) as equals — a side-by-side on a 3D-ready character and a dense composition came out even. `asset_gen.py` uses whichever key is set, Gemini by default for speed (~10 s vs 1–2 min); quality-critical assets are generated on both and the better kept.

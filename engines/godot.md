@@ -54,14 +54,22 @@ Most Godot behavior the model already knows; these few fail with no error:
 
 Hardware **Vulkan** (Metal on macOS) gives correct rendering and is required for video; software Vulkan (`llvmpipe`/`lavapipe`) can still do stills but skip video and report it. On WSL, hardware Vulkan is Mesa's `dzn` (see `setup.md`), and it renders SSAO as a regular dot grid — a driver bug, not the scene. macOS has no `xvfb`, so capture runs in a real window there — adding `--headless` to `--write-movie` aborts (`Parameter "t" is null`).
 
-Capture deterministically with Godot's movie writer from a dedicated capture `SceneTree` script under `test/`:
+Capture deterministically with Godot's movie writer from a dedicated capture `SceneTree` script under `test/`, through `tools/capture.py` (a uv script — `uv run tools/capture.py …`):
 
 ```bash
-# under xvfb-run -a -s '-screen 0 1920x1080x24' on a headless Linux box; prefer the hardware Vulkan ICD
-godot --headless --import
-godot --write-movie screenshots/result/frame.png --fixed-fps 30 --quit-after 450 --script test/Presentation.cs
-ffmpeg -y -framerate 30 -pattern_type glob -i 'screenshots/result/frame*.png' \
-  -c:v libx264 -pix_fmt yuv420p -movflags +faststart screenshots/result/video.mp4
+uv run tools/capture.py record --script test/Presentation.cs --seconds 15   # → screenshots/capture/
 ```
 
-`--fixed-fps` makes motion deterministic (450 frames @30fps = 15s). **Pre-position the camera** in the builder/`_Initialize` (the first movie frame renders before `_Process`). Drive capture-time input from the script, not live keys. The clip must show the behavior progressing across the whole window — no dead time, no single looped frame.
+`record` runs `dotnet build` and `--import`, records at `--fixed-fps 30` (under `xvfb-run` on Linux; `--window` for a visible window), then prints the renderer, any error lines from `godot.log`, and a review of the clip:
+
+- `sheet.png` — 12 evenly spaced frames labeled `#frame time`. Look at this first.
+- `motion.png` — a per-frame motion graph over each sample compared with 6 frames earlier, changed pixels in red. Shows what actually moves, which stills can't.
+- `FROZEN` / `DARK` / `POP` lines — spans with no motion, near-black spans, and single-frame jumps. `POP #1` means the first frame differs from the rest: the first movie frame renders before `_Process`, so pre-position the camera and settle warm-up effects (fog, exposure) in the builder/`_Initialize`.
+- `video.mp4` — the deliverable; `report.json` — the numbers.
+
+Then pull what the sheet makes you doubt at full size — `frames <clip> --at 212,7.5s` — and compare before/after renders with `diff a.png b.png`. `review <clip>` re-runs the review on an existing clip; `export <clip> out.webm|.gif` converts.
+
+- **The capture size is the window size** (`--size`, default 1920×1080). `--resolution` doesn't reach the movie writer; the tool sets `window_width_override` through a temporary `override.cfg`, leaving the base viewport and UI layout alone.
+- **OGV is the default format.** Godot encodes on the main thread, one frame at a time: at 1080p PNG costs ~230 ms/frame on Godot 4.7 (4.8 writes movie PNGs with fast compression, ~4× faster) against ~20 ms for OGV, at no visible loss. Use `--format png` only when judging pixel-exact detail. Theora stores a repeated frame as an empty packet that decoders skip, so a frozen span vanishes from a plain `ffmpeg` frame dump — extract frames through the tool, which re-times to constant fps.
+
+Drive capture-time input from the script, not live keys. The clip must show the behavior progressing across the whole window — no dead time, no single looped frame.

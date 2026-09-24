@@ -89,6 +89,8 @@ In a published game repo, the same asset-generation requirements file lives at:
 
 `google-genai` is required by `asset_gen.py` for Gemini image generation.
 
+The Godot capture tool (`tools/capture.py` in a published repo) is a uv script that declares its own dependencies — install [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`) and run it with `uv run`.
+
 ## Godot (.NET edition)
 
 The **.NET edition** is required for Godot projects. The standard Godot build cannot run C# scripts.
