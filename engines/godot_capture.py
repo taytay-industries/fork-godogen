@@ -131,8 +131,9 @@ class Clip:
         return self.frames / self.fps if self.fps else 0.0
 
     def cfr(self) -> str:
-        """Filter prefix giving one decoded frame per frame index (re-inserts held frames)."""
-        return "" if self.is_dir else f"fps={self.fps},trim=end_frame={self.frames},"
+        """Filter prefix giving one decoded frame per frame index (re-inserts held frames).
+        A clip that ends on a still frame ends in empty packets that `fps` can't fill, so clone the last frame."""
+        return "" if self.is_dir else f"fps={self.fps},tpad=stop=-1:stop_mode=clone,trim=end_frame={self.frames},"
 
     def ffmpeg_input(self) -> list[str]:
         if self.is_dir:
@@ -283,7 +284,7 @@ def make_motion_sheet(clip: Clip, report: dict, out: Path, count: int, cols: int
     idx = [i for i in spaced(clip.frames, count) if i >= gap] or [clip.frames - 1]
     # also show each pop against the frame before it, where the model most needs to look
     pop_idx = [p["frame"] for p in report["pops"]][:cols]
-    pairs = [(i - gap, i) for i in idx] + [(i - 1, i) for i in pop_idx]
+    pairs = [(max(0, i - gap), i) for i in idx] + [(i - 1, i) for i in pop_idx]   # clips shorter than gap compare with #0
     frames = clip.grab([i for pair in pairs for i in pair])
     tiles = []
     for a, b in pairs:
