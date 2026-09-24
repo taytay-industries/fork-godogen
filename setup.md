@@ -206,9 +206,39 @@ Set in environment:
 Either image key is enough; with both, Gemini is the default and quality-critical assets are generated on each.
 - `TRIPO_API_KEY` — image-to-3D conversion via the `tripo` CLI (`npm install -g tripo-cli`, Node 20+)
 
+## WSL2 (Windows)
+
+WSL has no Linux NVIDIA driver and no `nvidia_icd.json`. The GPU reaches Linux through `/dev/dxg` and the libraries in `/usr/lib/wsl/lib`, which speak D3D12 and CUDA — so CUDA (`nvidia-smi`, `onnxruntime-gpu`) works out of the box, but graphics need Mesa to translate to D3D12:
+
+- **Vulkan** needs Mesa's `dzn` ("Dozen", Vulkan over D3D12). Ubuntu's `mesa-vulkan-drivers` leaves it out, so stock Vulkan is `llvmpipe` on the CPU — ~20 s per frame on a heavy 1080p scene, too slow for video. The [kisak-mesa PPA](https://launchpad.net/~kisak/+archive/ubuntu/kisak-mesa) ships it (`libvulkan_dzn.so`, `dzn_icd.json`); upgrade all Mesa packages together:
+
+  ```bash
+  sudo add-apt-repository -y ppa:kisak/kisak-mesa
+  sudo apt-get update && sudo apt-get upgrade -y
+  ```
+
+- **OpenGL** uses Mesa's `d3d12` Gallium driver, already in Ubuntu's Mesa, but Mesa picks `llvmpipe` unless told otherwise. Add to `~/.bashrc`:
+
+  ```bash
+  export GALLIUM_DRIVER=d3d12
+  ```
+
+`dzn` exposes Vulkan 1.2, is flagged non-conformant (it warns `dzn is not a conformant Vulkan implementation`), and runs Godot's Forward+ renderer. **SSAO renders a regular dot-grid pattern on it** — a driver bug, not the scene; shadows, SSIL, glow, and volumetric fog render the same as on `llvmpipe`. Leave SSAO off for WSL captures or treat the pattern as known.
+
+WSLg provides `DISPLAY=:0`, so `godot --path .` opens a window on the Windows desktop. `xvfb-run` still works and keeps unattended captures off the desktop.
+
 ## Verify Rendering
 
 ```bash
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json vulkaninfo --summary 2>&1 | grep "deviceName"
 xvfb-run -a godot --headless --quit
+```
+
+On WSL, skip `VK_ICD_FILENAMES` and look for the D3D12 device, then confirm Godot picks it:
+
+```bash
+vulkaninfo --summary 2>&1 | grep -E "deviceName|driverName"   # Microsoft Direct3D12 (NVIDIA ...) / Dozen
+glxinfo -B | grep "renderer string"                            # D3D12 (NVIDIA ...)   — glxinfo is in mesa-utils
+xvfb-run -a godot --rendering-driver vulkan --write-movie /tmp/v.png --quit-after 2 2>&1 | grep "Using Device"
+# Vulkan 1.2.x - Forward+ - Using Device #0: NVIDIA - Microsoft Direct3D12 (NVIDIA ...)
 ```

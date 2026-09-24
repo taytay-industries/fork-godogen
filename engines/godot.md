@@ -52,7 +52,7 @@ Most Godot behavior the model already knows; these few fail with no error:
 
 ## Capture (proof video)
 
-Hardware **Vulkan** (Metal on macOS) gives correct rendering and is required for video; software Vulkan (`llvmpipe`/`lavapipe`) can still do stills but skip video and report it. macOS has no `xvfb`, so capture runs in a real window there — adding `--headless` to `--write-movie` aborts (`Parameter "t" is null`).
+Hardware **Vulkan** (Metal on macOS) gives correct rendering and is required for video; software Vulkan (`llvmpipe`/`lavapipe`) can still do stills but skip video and report it. On WSL, hardware Vulkan is Mesa's `dzn` (see `setup.md`), and it renders SSAO as a regular dot grid — a driver bug, not the scene. macOS has no `xvfb`, so capture runs in a real window there — adding `--headless` to `--write-movie` aborts (`Parameter "t" is null`).
 
 Capture deterministically with Godot's movie writer from a dedicated capture `SceneTree` script under `test/`:
 
