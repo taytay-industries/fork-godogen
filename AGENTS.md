@@ -5,9 +5,11 @@ This repository is not a published game repo. It is the source that `publish.sh`
 ## Source Layout
 
 - `prompts/runtime.md` — the engine-agnostic runtime manifest text
-- `asset-gen/` — the asset-generation skill (CLI tools + docs), the one skill every published repo carries
+- `asset-gen/` — the asset-generation skill (CLI tools + docs, the asset feed, the key drop page)
 - `engines/babylon.md`, `engines/godot.md`, `engines/bevy.md` — per-engine guides (stack, project sketch, capture recipe, silent-failure traps)
-- `engines/<engine>_capture.py` — an engine's capture tool (record + review), published as `tools/capture.py`; Godot has one
+- `engines/<engine>_tools/` — an engine's tools, published into the game's `tools/` (Godot: `capture.py` record + review, `AnimLab.cs` rigged-clip lab and fixer, `Facing.cs` model facing check, `SceneKit.cs` scene-builder helpers)
+- `skills/` — further skills every published repo carries (`game-design-critique`)
+- `vendor/skills/` — the vendors' own skills for the CLIs asset-gen drives (ElevenLabs, Tripo); refresh with `vendor/sync.sh`, never edit by hand
 - `publish.sh` — renders a runtime repo with `--engine {godot,bevy,babylon}`, `--agent {claude,codex}`
 - `scripts/` — render helpers: `render_dir.py` (token substitution), `generate_codex_metadata.py` (Codex `openai.yaml`)
 

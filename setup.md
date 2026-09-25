@@ -58,18 +58,19 @@ Babylon capture prefers hardware WebGL2. A fallback to a software renderer (Swif
 ## System Packages
 
 ```bash
-sudo apt-get install vulkan-tools xvfb ffmpeg imagemagick
+sudo apt-get install vulkan-tools xvfb ffmpeg imagemagick git-lfs
 ```
 
 - **vulkan-tools** — `vulkaninfo` for GPU validation
 - **xvfb** — virtual X11 display for headless Godot/Bevy runs and capture
 - **ffmpeg** — MP4 encoding of proof videos and sprite frame extraction
 - **imagemagick** — image resize, flip, crop for sprite pipelines
+- **git-lfs** — published repos commit generated models, images, audio, and video through Git LFS
 
 On macOS:
 
 ```bash
-brew install coreutils ffmpeg dotnet@9
+brew install coreutils ffmpeg dotnet@9 git-lfs
 ```
 
 ## Python

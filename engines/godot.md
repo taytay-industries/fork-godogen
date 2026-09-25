@@ -13,7 +13,7 @@ The user watches by running the project themselves (`godot --path .` or the edit
 
 ## Scenes are generated at build time, not by hand
 
-Write scenes as **C# `SceneTree` scripts** that run once headless and emit a `.tscn`: `godot --headless --script scenes/BuildX.cs`. A builder builds the node hierarchy, sets properties, attaches scripts, packs, and `Quit()`s — it contains **no** runtime logic (no `_Ready`/`_Process`, signals, or game state). Build **leaf scenes first**, parents after.
+Write scenes as **C# `SceneTree` scripts** that run once headless and emit a `.tscn`: `godot --headless --script scenes/BuildX.cs`. The builder runs from the compiled assembly — `dotnet build` first, or an edited builder silently re-emits the old scene. A builder builds the node hierarchy, sets properties, attaches scripts, packs, and `Quit()`s — it contains **no** runtime logic (no `_Ready`/`_Process`, signals, or game state). Build **leaf scenes first**, parents after.
 
 The serialization rules below are silent-failure — they pass compilation and drop nodes or bloat files only in the saved `.tscn`:
 
@@ -36,6 +36,8 @@ void PackAndSave(Node root, string path) {
 }
 ```
 
+`tools/SceneKit.cs` implements this save path plus measured GLB placement (`Model`, `Place`, `Measure`, `Slab`) — use it rather than rewriting it per scene.
+
 GLB models: instantiate the `PackedScene`, measure the `MeshInstance3D` AABB to scale, and use a **primitive** collision shape (Box/Sphere/Capsule) from the AABB — never `CreateTrimeshShape()`/`CreateConvexShape()` on imported meshes (drops to <1 FPS).
 
 ## Quirks worth knowing (silent-failure)
@@ -49,6 +51,29 @@ Most Godot behavior the model already knows; these few fail with no error:
 - **`.gdignore`** in a directory makes the importer skip it silently — only `screenshots/` should have one, never `assets/`.
 - **C# enum names:** training data is GDScript-biased, so guessed C# enum names are often wrong (`BGMode.Sky`, not `BGModeEnum.Sky`). Verify against the installed Godot — read the C# API in the Godot docs/assemblies rather than guessing.
 - Frame-rate-independent damping: `speed *= Mathf.Exp(-rate * delta)`, not `speed *= (1 - drag)` per tick.
+
+## Generated models and characters
+
+- **Facing:** `tools/Facing.cs` renders every GLB in a folder unrotated, seen from +Z (`FACING_DIR=res://assets/props uv run tools/capture.py record --script tools/Facing.cs --seconds 0.2 --format png --out screenshots/facing`). Set each model's yaw from that frame before placing a batch.
+- **Rigged clips:** `tools/AnimLab.cs` puts one character on a treadmill stage, samples each clip from the skeleton, and reports root drift, loop seam pops, freezes, foot slide, heading, and gait as PASS/WARN/FAIL (FAILs land in `godot.log`, so `capture.py` lists them). Record it to see the problem the way the game would:
+
+  ```bash
+  uv run tools/capture.py record --script tools/AnimLab.cs --seconds 8 --out screenshots/animlab -- ++ \
+      --model res://assets/hero.glb --anim res://assets/hero_walk.glb --clip walk --cycles 3 --height 1.2
+  ```
+
+  Then bake the fixes into a clean GLB the game loads with no fix-up code, and re-check it with **no** fix flags — it must pass:
+
+  ```bash
+  godot --headless --path . --script tools/AnimLab.cs ++ --model res://assets/hero.glb --anim res://assets/hero_walk.glb \
+      --anim res://assets/hero_idle.glb --clip walk,idle --cycles 0 --strip-root --fix-loop --height 1.2 --export res://assets/clean/hero.glb
+  godot --headless --import
+  uv run tools/capture.py record --script tools/AnimLab.cs --seconds 8 --out screenshots/animlab_clean -- ++ \
+      --model res://assets/clean/hero.glb --clip walk --game-forward +Z
+  ```
+
+  The export merges the clips, turns the model so travel is +Z, scales it, and writes `hero.json` (clip lengths, authored ground speed — drive `SpeedScale` from it). `godot --path . --script tools/AnimLab.cs ++ … --loop` keeps a live window cycling the clips; it restarts itself when the project is rebuilt. Strip root motion in the hip's *parent* frame (what `--strip-root` does); stripping in hip-local space fakes a side-to-side sway with sliding feet.
+- Whole-frame capture review misses small things popping — a character snapping back each loop reads as a few pixels. For anything small that moves, record its world position per frame in the capture script and `GD.PushError` on a jump, so the review lists it.
 
 ## Capture (proof video)
 

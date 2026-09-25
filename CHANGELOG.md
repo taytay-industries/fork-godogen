@@ -1,5 +1,12 @@
 # Changelog
 
+**2026-09-25 — Every game gets the whole toolkit**
+- Godot repos get `tools/AnimLab.cs` (measures rigged clips — drift, loop pops, freezes, foot slide, heading — and exports a clean GLB with the fixes baked in; takes a bare rig plus clip GLBs), `tools/Facing.cs` (which way each generated model faces), and `tools/SceneKit.cs` (measured GLB placement and the validated pack-and-save), next to `tools/capture.py`. Per-engine tools live in `engines/<engine>_tools/`.
+- Published repos carry the `game-design-critique` skill and the vendors' own skills for the CLIs asset-gen drives: ElevenLabs text-to-speech, sound effects, music, voice changer, speech-to-text, key setup, and Tripo (`vendor/sync.sh` refreshes them).
+- `publish.sh` sets up Git LFS for generated binaries and no longer ignores `assets/`; the textures Godot unpacks from GLBs stay ignored.
+- `asset-gen/tools/keydrop.py` takes an API key from a remote user through a one-shot page instead of the chat, checking it with its service first.
+- The guides carry what three games taught: Tripo's hyphenated names, one clip per retarget, P1 pricing, raw-clip faults and facing; builders run from the compiled assembly; a free-tier Gemini key can't generate images; critique a clean capture before presenting.
+
 **2026-09-25 — Asset feed**
 - `asset-gen/tools/feed.py serve` runs a live page of a project's generated assets: a card appears as each generation starts and fills in when it finishes — images, GLBs turning in a 3D viewer with their animation clips, audio waveforms, videos (captures converted to MP4 for the browser) — with prompt, cost, the input files it came from, and every earlier version, so rejected takes stay viewable.
 - `asset_gen.py` and `audio_prep.py` log themselves; `feed.py run -- <cmd>` logs any other generator CLI (tripo, elevenlabs, qwen-image), reading outputs and cost from its JSON; a watcher logs whatever else lands in the asset, `refs/`, and `screenshots/` folders. `note` and `mark kept|rejected` record the decisions behind the files.
