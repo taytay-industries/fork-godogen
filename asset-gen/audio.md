@@ -14,8 +14,8 @@ The CLI saves the API's MP3 (`-o`; `--format json` prints `{"saved_file", "bytes
 
 ```bash
 P="python3 ${ASSET_GEN_SKILL_DIR}/tools/audio_prep.py"; E="python3 ${ASSET_GEN_SKILL_DIR}/tools/feed.py run --"   # feed: SKILL.md
-$E elevenlabs text-to-speech convert --voice-id <id> --model-id eleven_v3 --text "Welcome to Robot School!" -o raw/bolt_01.mp3
-$P raw/bolt_01.mp3 -o ${RUNTIME_ASSET_DIR}/audio/vo/bolt_01.ogg --lufs -18
+$E elevenlabs text-to-speech convert --voice-id <id> --model-id eleven_v3 --text "Halt! Who goes there?" -o raw/guard_01.mp3
+$P raw/guard_01.mp3 -o ${RUNTIME_ASSET_DIR}/audio/vo/guard_01.ogg --lufs -18
 
 $E elevenlabs text-to-sound-effects convert --text "classroom door handle jiggled, door rattles against its lock" \
   --duration-seconds 1.2 --prompt-influence 0.6 -o raw/door_locked.mp3
@@ -42,7 +42,7 @@ $E elevenlabs speech-to-speech convert --audio take.wav --voice-id <id> --model-
 
 - `voices search` covers only the account's voices (the premade set plus any the user added). The public library is `voices get_shared --search "<character type>"` — a search for "robot" found retro-computer, AI-assistant, and robot-character voices — and a shared `voice_id` works in `text-to-speech convert` directly, without adding it to the account.
 - **Cast before scripting.** Generate one representative line in 2–3 candidate voices and let the user pick by listening (send MP3 copies: `.ogg` doesn't play on iOS). Record the chosen `voice_id`, model, and `--voice-settings` in the README manifest — a later line with different settings sounds like a different actor.
-- **One file per line**, named by line id (`bolt_01`), generated from the script the game shows so subtitles and audio can't drift apart. Pass the neighbouring lines as `--previous-text` / `--next-text` so a conversation keeps one delivery instead of resetting its intonation every line.
+- **One file per line**, named by line id (`guard_01`), generated from the script the game shows so subtitles and audio can't drift apart. Pass the neighbouring lines as `--previous-text` / `--next-text` so a conversation keeps one delivery instead of resetting its intonation every line.
 - `--voice-settings '{"stability": 0.35}'` for animated characters, ~0.7 for narrators and system voices.
 - **Acting on `eleven_v3`** is directed with free-form bracketed tags before the words they color — `[dictating, bored]`, `[sleepy] [whispers to herself]`, `[flat, reading from a script, unenthusiastic]`, `[in a deep, dramatic movie-trailer narrator voice]`, `[gasps] [surprised]`, `[relieved, laughing]` — plus `...` for hesitation. Voices differ a lot in how many directions they honor, so audition the widest-range lines, not a neutral one. A tag alone won't make one character imitate another (a robot, an accent): `[in a stilted robot voice]` barely changed the read, while adding the words that signal the impression — `[mockingly impersonating a robot] Beep boop. Maybe it…` — made it land. Post-processing the phrase (ring modulation) sounded like the robot speaking rather than her imitating it. Voice metadata doesn't mark v3 suitability (`high_quality_base_model_ids` never lists `eleven_v3`); library voices built for it say so in their description — search `voices get_shared --search v3`.
 - **speech-to-speech** (voice changer) keeps a recorded performance's timing and emotion and swaps the speaker — the way to get an exact read (a comic pause, a scream) that text can't direct. Input must be clean; `--remove-background-noise true` if not.
