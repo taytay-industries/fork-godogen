@@ -122,7 +122,7 @@ const KIND_GUESS = [[/tripo|glb/i, "model"], [/elevenlabs|audio_prep|music|sound
 const cards = new Map();      // id -> card state
 const byBlob = new Map();     // blob -> card id
 const seen = new Set();
-let live = false, filter = "all", unseenNew = 0;
+let live = false, filter = new URLSearchParams(location.search).get("filter") || "all", unseenNew = 0;
 
 function kinds(c) {
   if (c.type === "note") return new Set(["note"]);
@@ -210,6 +210,7 @@ function render() {
   for (const c of list) { c.el = renderCard(c); feed.append(c.el); }
   $("#empty").style.display = list.length ? "none" : "";
   stats();
+  if (hashCard()) requestAnimationFrame(() => show(hashCard(), false));   // a shared #c-<id> link opens on its card
 }
 
 function ago(t) {
@@ -224,7 +225,7 @@ const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(
 function renderCard(c) {
   const ks = kinds(c);
   const k = [...ks][0] || "note";
-  const el = h("article", { class: `card k-${k}${c.fresh && !c.el ? " fresh" : ""}${c.status === "rejected" ? " rejected" : ""}`,
+  const el = h("article", { id: `c-${c.id}`, class: `card k-${k}${c.fresh && !c.el ? " fresh" : ""}${c.status === "rejected" ? " rejected" : ""}`,
     "data-t": c.t, "data-kinds": [...ks].join(" "), "data-status": c.status || "" });
   const costs = (c.cost || []).map(x => `${+x.n.toFixed(2)} ${x.unit}`).join(" · ");
   const secs = c.tEnd && c.t ? c.tEnd - c.t : null;
@@ -312,12 +313,26 @@ const lazyObs = new IntersectionObserver(es => es.forEach(e => {
 }), { rootMargin: "400px" });
 function lazy(el, fn) { lazyFns.set(el, fn); lazyObs.observe(el); }
 
+// Following a link pushes a history entry: Back returns to where you were reading, Forward to the card again.
 function jump(blob) {
   const c = cards.get(byBlob.get(blob));
   if (!c?.el) return;
-  c.el.scrollIntoView({ behavior: "smooth", block: "center" });
-  c.el.classList.remove("flash"); void c.el.offsetWidth; c.el.classList.add("flash");
+  history.replaceState({ y: scrollY }, "", location.href);
+  history.pushState({ card: c.id }, "", `#c-${c.id}`);
+  show(c.id);
 }
+function show(id, smooth = true) {
+  const el = document.getElementById(`c-${id}`);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: smooth ? "smooth" : "instant", block: "center" });
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  return true;
+}
+const hashCard = () => location.hash.startsWith("#c-") ? location.hash.slice(3) : null;
+addEventListener("popstate", e => {
+  if (e.state?.y != null) scrollTo({ top: e.state.y, behavior: "instant" });
+  else if (hashCard()) show(hashCard());
+});
 function lightbox(src) { const lb = $("#lightbox"); lb.firstChild.src = src; lb.style.display = "flex"; }
 $("#lightbox").onclick = e => e.currentTarget.style.display = "none";
 
@@ -327,7 +342,11 @@ function applyFilter(el) {
 }
 const FILTERS = [["all", "All"], ["image", "Images"], ["model", "3D"], ["audio", "Audio"], ["video", "Video"], ["note", "Notes"]];
 $("#filters").append(...FILTERS.map(([k, label]) => h("button", { class: `chip${k === filter ? " on" : ""}`, "data-k": k, onclick: () => {
-  filter = k; document.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", b.dataset.k === k));
+  filter = k;
+  const q = new URLSearchParams(location.search);
+  if (k === "all") q.delete("filter"); else q.set("filter", k);
+  history.replaceState(history.state, "", `${location.pathname}${q.size ? `?${q}` : ""}${location.hash}`);
+  document.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", b.dataset.k === k));
   document.querySelectorAll(".card").forEach(applyFilter);
 } }, label)));
 $("#showRejected").onchange = () => document.querySelectorAll(".card").forEach(applyFilter);
