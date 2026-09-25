@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
+import feed
+
 SR = 44100
 SILENCE_DB = -45.0          # below this a 10 ms window counts as silent
 LOOP_RANGE_WARN_DB = 1.5    # a loop whose 0.5 s loudness spreads wider than this audibly swells each pass
@@ -84,6 +86,19 @@ def main():
     a = ap.parse_args()
 
     src, out = Path(a.input), Path(a.output)
+    job = feed.start(out.name, tool="audio_prep" + (" --loop" if a.loop else ""), sources=[src],
+                     cmd=" ".join(sys.argv[1:]))
+    try:
+        report = prepare(a, src, out)
+    except SystemExit as e:
+        feed.done(job, ok=False, error=str(e.code))
+        raise
+    feed.done(job, files=[out], log="\n".join(report["warnings"]) or None,
+              info={k: report[k] for k in ("seconds", "peak_db", "lufs")})
+    print(json.dumps(report))
+
+
+def prepare(a, src: Path, out: Path) -> dict:
     if out.suffix.lower() not in CODECS:
         sys.exit(json.dumps({"ok": False, "error": f"output must end in {', '.join(CODECS)}"}))
     x = load(src)
@@ -142,7 +157,7 @@ def main():
     elif tail_ms > TAIL_WARN_MS:
         warnings.append(f"{tail_ms} ms of silence at the end (fine unless the game waits for the sound to finish)")
     report["warnings"] = warnings
-    print(json.dumps(report))
+    return report
 
 
 if __name__ == "__main__":

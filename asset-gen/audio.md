@@ -13,22 +13,22 @@ That validates the key and shows credits. If it fails, ask the user to put the k
 The CLI saves the API's MP3 (`-o`; `--format json` prints `{"saved_file", "bytes"}`). Plans cap concurrent requests (Starter: 3) — more in parallel fail with `429 concurrent_limit_exceeded`, so batch at most 3 at a time. A failure exits 1 with a JSON `error` — read `error.details`; its `help` text may blame credentials when the key was fine. Keep raw MP3s outside the runtime asset folder and write the engine file with `audio_prep.py`:
 
 ```bash
-P="python3 ${ASSET_GEN_SKILL_DIR}/tools/audio_prep.py"
-elevenlabs text-to-speech convert --voice-id <id> --model-id eleven_v3 --text "Welcome to Robot School!" -o raw/bolt_01.mp3
+P="python3 ${ASSET_GEN_SKILL_DIR}/tools/audio_prep.py"; E="python3 ${ASSET_GEN_SKILL_DIR}/tools/feed.py run --"   # feed: SKILL.md
+$E elevenlabs text-to-speech convert --voice-id <id> --model-id eleven_v3 --text "Welcome to Robot School!" -o raw/bolt_01.mp3
 $P raw/bolt_01.mp3 -o ${RUNTIME_ASSET_DIR}/audio/vo/bolt_01.ogg --lufs -18
 
-elevenlabs text-to-sound-effects convert --text "classroom door handle jiggled, door rattles against its lock" \
+$E elevenlabs text-to-sound-effects convert --text "classroom door handle jiggled, door rattles against its lock" \
   --duration-seconds 1.2 --prompt-influence 0.6 -o raw/door_locked.mp3
 $P raw/door_locked.mp3 -o ${RUNTIME_ASSET_DIR}/audio/sfx/door_locked.ogg
 
-elevenlabs text-to-sound-effects convert --text "low electric hum of a charging station" --duration-seconds 6 --loop true -o raw/hum.mp3
+$E elevenlabs text-to-sound-effects convert --text "low electric hum of a charging station" --duration-seconds 6 --loop true -o raw/hum.mp3
 $P raw/hum.mp3 -o ${RUNTIME_ASSET_DIR}/audio/sfx/hum.ogg --loop
 
-elevenlabs music compose --prompt "playful lo-fi chiptune, curious, 95 bpm" --music-length-ms 60000 \
+$E elevenlabs music compose --prompt "playful lo-fi chiptune, curious, 95 bpm" --music-length-ms 60000 \
   --force-instrumental true --model-id music_v2 -o raw/theme.mp3
 $P raw/theme.mp3 -o ${RUNTIME_ASSET_DIR}/audio/music/theme.ogg --lufs -16
 
-elevenlabs speech-to-speech convert --audio take.wav --voice-id <id> --model-id eleven_multilingual_sts_v2 -o raw/line.mp3
+$E elevenlabs speech-to-speech convert --audio take.wav --voice-id <id> --model-id eleven_multilingual_sts_v2 -o raw/line.mp3
 ```
 
 `audio_prep.py` prints `seconds`, `peak_db`, `lufs`, what it trimmed, and `warnings` — act on the warnings before wiring the sound in:

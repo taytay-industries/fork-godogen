@@ -74,9 +74,9 @@ Reuse one reference for all of a character's actions. **Chaining** (feed action 
 The `tripo` CLI (`npm install -g tripo-cli`, key in `TRIPO_API_KEY`) owns the whole 3D path: submit, poll, download, credit pre-check, refunds on failure. Its own agent docs are the reference — `tripo docs --llm`, then `tripo docs --topic commands/process` / `examples/animation` / `common-errors` — this section only covers what is specific to game use here.
 
 ```bash
-tripo make ref.png --name car -p face_limit=30000 -p auto_size=true --json --yes -o ${RUNTIME_ASSET_DIR}/glb
-tripo make ref.png --name hero --then rig-check,rig:model=v1.0-20240301 --json --yes -o ${RUNTIME_ASSET_DIR}/glb
-tripo anim retarget @hero --animation preset:biped:walk preset:biped:idle --json --yes -o ${RUNTIME_ASSET_DIR}/glb
+$FEED run --eta 120 -- tripo make ref.png --name car -p face_limit=30000 -p auto_size=true --json --yes -o ${RUNTIME_ASSET_DIR}/glb
+$FEED run --eta 300 -- tripo make ref.png --name hero --then rig-check,rig:model=v1.0-20240301 --json --yes -o ${RUNTIME_ASSET_DIR}/glb
+$FEED run -- tripo anim retarget @hero --animation preset:biped:walk preset:biped:idle --json --yes -o ${RUNTIME_ASSET_DIR}/glb
 ```
 
 - `make` is blocking (default timeout 30 min) and prints one JSON line: read `model_file`, `preview.png` and `credits_consumed` from it. Never add your own shorter timeout, never resubmit because a task_id appeared in stderr. If the process does die, `tripo task watch <id> --download` finishes the same task for free.
@@ -112,6 +112,25 @@ Voice lines, sound effects, music, and voice conversion come from the official `
 ## Costs
 
 Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model, ~25 to rig, ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate. ElevenLabs bills credits from the plan's monthly quota (sound effects ~10 per second); read usage before and after a batch (audio.md).
+
+## Asset feed
+
+`tools/feed.py` is a live page of this project's generated assets, for the user to watch while you work: a card appears when a generation starts (prompt, elapsed time) and fills in when it finishes — images, spinning GLBs with their animation clips, audio waveforms, videos — with cost, the input files it came from, and every earlier version (files are snapshotted by content hash into `.feed/`, which is gitignored). At the start of a session, start it in the background unless `curl -s localhost:8765` already answers, and give the user the URL:
+
+```bash
+FEED="python3 ${ASSET_GEN_SKILL_DIR}/tools/feed.py"
+$FEED serve            # http://127.0.0.1:8765; for a remote user, expose it on their tailnet (tailscale serve)
+```
+
+`asset_gen.py` and `audio_prep.py` log themselves. Prefix every other generator call with `$FEED run --` — it logs the command as a pending job, links input files named on the command line, and reads outputs and cost from the command's JSON (`tripo` credits included). Pass `--cost` where the command doesn't report it (ElevenLabs: `--cost "18 ElevenLabs cr"` from audio.md's rates), `--title` for a readable name, `--eta` seconds for the progress bar. The watcher logs anything else that lands in `${RUNTIME_ASSET_DIR}/`, `refs/`, or `screenshots/`, so captures appear on their own.
+
+Log judgment as well as files — this is where the user sees what happened and why:
+
+```bash
+$FEED note "User: the hum swells into noise near the end — flattening it" --file ${RUNTIME_ASSET_DIR}/audio/sfx/hum.ogg
+$FEED mark raw/take_2.mp3 rejected "reads as sarcastic"      # or: kept
+$FEED add refs/lineup.png --title "all four heads" --from refs/head_a.png    # a file no tool logged
+```
 
 ## Output and logging
 

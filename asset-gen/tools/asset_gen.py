@@ -24,14 +24,20 @@ from google import genai
 from google.genai import types
 from PIL import Image
 
+import feed
+
 TOOLS_DIR = Path(__file__).parent
 
 VIDEO_MODEL = "grok-imagine-video-1.5"
 VIDEO_COSTS_PER_SEC = {"480p": 8, "720p": 14}  # cents, +1¢ for the start frame; xAI's billed cost_usd is reported when present
 
 
+_result: dict = {}
+
+
 def result_json(ok: bool, path: str | None = None, cost_cents: int = 0, error: str | None = None):
     d = {"ok": ok, "cost_cents": cost_cents}
+    _result.update(d, path=path, error=error)
     if path:
         d["path"] = path
     if error:
@@ -265,7 +271,17 @@ def main():
     p_vid.set_defaults(func=cmd_video)
 
     args = parser.parse_args()
-    args.func(args)
+    backend = getattr(args, "model", None) or (_default_backend() if args.command == "image" else "grok")
+    job = feed.start(Path(args.output).name, tool=f"asset_gen {args.command} ({backend})", prompt=args.prompt,
+                     sources=[args.image], eta={"gemini": 12, "grok": 75}[backend or "grok"] if args.command == "image" else 150)
+    try:
+        args.func(args)
+    except Exception as e:
+        _result["error"] = _result.get("error") or f"{type(e).__name__}: {e}"
+        raise
+    finally:
+        feed.done(job, files=[_result.get("path")], ok=bool(_result.get("ok")), error=_result.get("error"),
+                  cost=[{"n": _result["cost_cents"], "unit": "¢"}] if _result.get("cost_cents") else [])
 
 
 if __name__ == "__main__":

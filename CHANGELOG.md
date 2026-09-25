@@ -1,5 +1,10 @@
 # Changelog
 
+**2026-09-25 — Asset feed**
+- `asset-gen/tools/feed.py serve` runs a live page of a project's generated assets: a card appears as each generation starts and fills in when it finishes — images, GLBs turning in a 3D viewer with their animation clips, audio waveforms, videos (captures converted to MP4 for the browser) — with prompt, cost, the input files it came from, and every earlier version, so rejected takes stay viewable.
+- `asset_gen.py` and `audio_prep.py` log themselves; `feed.py run -- <cmd>` logs any other generator CLI (tripo, elevenlabs, qwen-image), reading outputs and cost from its JSON; a watcher logs whatever else lands in the asset, `refs/`, and `screenshots/` folders. `note` and `mark kept|rejected` record the decisions behind the files.
+- History lives in the project's gitignored `.feed/` (an event log plus content-addressed snapshots). Stdlib only; the page loads model-viewer and wavesurfer.js from jsDelivr.
+
 **2026-09-24 — Godot capture tool**
 - Published Godot repos carry `tools/capture.py`, a uv script that records and reviews in one step: `record` builds, imports, and records with the movie writer, then prints the renderer, error lines, and a review — a labeled contact sheet, a motion sheet (motion graph plus changed pixels in red against 6 frames earlier), `FROZEN` / `DARK` / `POP` spans, `video.mp4`, and `report.json`. `frames`, `diff`, `review`, and `export` cover follow-up inspection.
 - Capture records OGV by default: Godot encodes movie frames on the main thread, and at 1080p Theora takes ~20 ms/frame against ~230 ms for PNG on Godot 4.7, at no visible loss. The tool re-times clips to constant fps, since Theora's empty repeat packets otherwise hide frozen spans.
