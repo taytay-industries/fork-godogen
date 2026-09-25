@@ -426,8 +426,35 @@ class Watcher(threading.Thread):
                   "files": entries, "watched": True})
 
 
+IS_WSL = "microsoft" in Path("/proc/version").read_text().lower() if Path("/proc/version").exists() else False
+
+
+def win_path(p: Path) -> str | None:
+    if not IS_WSL:
+        return None
+    r = subprocess.run(["wslpath", "-w", str(p)], capture_output=True, text=True)
+    return r.stdout.strip() or None
+
+
+def host_info() -> dict:
+    """What the page needs to build full paths and label the reveal button for this machine."""
+    return {"root": str(ROOT), "win_root": win_path(ROOT), "win_slash": win_path(Path("/")), "host": os.uname().nodename,
+            "reveal": "Explorer" if IS_WSL or sys.platform == "win32" else "Finder" if sys.platform == "darwin" else "folder"}
+
+
+def reveal(target: Path):
+    """Show the file selected in the file manager of the machine running the feed."""
+    if IS_WSL:
+        subprocess.Popen(["explorer.exe", f"/select,{win_path(target)}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(target)])
+    else:
+        subprocess.Popen(["xdg-open", str(target.parent)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 class Handler(BaseHTTPRequestHandler):
     page = Path(__file__).with_name("feed.html")
+    timeout = 60     # a client that stops reading (a proxy wedged mid-download) frees its thread; streams ping every 15 s
 
     def log_message(self, *a):
         pass
@@ -441,12 +468,39 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif path == "/info":
+            self.json(host_info())
         elif path == "/events":
             self.stream(once="once" in self.path)
         elif m := re.fullmatch(r"/blob/([0-9a-f]{16}\.[a-z0-9]+)", path):
             self.blob(BLOBS / m.group(1))
         else:
             self.send_error(404)
+
+    def json(self, d: dict, code: int = 200):
+        body = json.dumps(d).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        if self.path.split("?")[0] != "/reveal":
+            return self.send_error(404)
+        try:
+            d = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        except ValueError:
+            return self.send_error(400)
+        # Only files inside the project (or the feed's own snapshot of one that has since changed or gone).
+        target = (ROOT / d.get("path", "")).resolve()
+        if not (target.is_relative_to(ROOT) and target.is_file()):
+            blob = BLOBS / str(d.get("blob", ""))
+            if not (re.fullmatch(r"[0-9a-f]{16}\.[a-z0-9]+", str(d.get("blob", ""))) and blob.is_file()):
+                return self.json({"ok": False, "error": "file not found"}, 404)
+            target = blob
+        reveal(target)
+        self.json({"ok": True, "path": str(target), "snapshot": target.parent == BLOBS})
 
     def stream(self, once=False):
         self.send_response(200)
@@ -520,6 +574,7 @@ def cmd_serve(a):
     dirs = watch_dirs(a.watch)
     if not a.no_watch:
         Watcher(dirs, a.backfill).start()
+    ThreadingHTTPServer.request_queue_size = 64      # each open page holds a stream; the default backlog is 5
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     srv.daemon_threads = True
     print(f"feed: http://{a.host}:{a.port}/  project {ROOT}  watching {', '.join(rel(d) for d in dirs) or 'nothing'}",
