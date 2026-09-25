@@ -461,6 +461,10 @@ def reveal(target: Path):
         subprocess.Popen(["xdg-open", str(target.parent)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def page_version() -> str:
+    return hashlib.sha1(Path(__file__).with_name("feed.html").read_bytes()).hexdigest()[:12]
+
+
 class Handler(BaseHTTPRequestHandler):
     page = Path(__file__).with_name("feed.html")
     timeout = 60     # a client that stops reading (a proxy wedged mid-download) frees its thread; streams ping every 15 s
@@ -471,7 +475,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
         if path in ("/", "/index.html"):
-            body = self.page.read_bytes().replace(b"{{PROJECT}}", ROOT.name.encode())
+            body = self.page.read_bytes()
+            body = body.replace(b"{{PROJECT}}", ROOT.name.encode()).replace(b"{{PAGE}}", page_version().encode())
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -517,6 +522,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
+        # The page reloads itself when it was served from an older feed.html.
+        self.wfile.write(f'data: {{"type":"hello","page":"{page_version()}"}}\n\n'.encode())
         # Every connection replays the log from the top; the page dedupes by event id.
         offset, idle = 0, 0.0
         try:

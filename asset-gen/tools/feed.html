@@ -427,14 +427,41 @@ setInterval(() => document.querySelectorAll("[data-ago]").forEach(w => {
   w.firstChild.textContent = ago(+w.dataset.ago) + (w.firstChild.textContent.match(/ · took .*/)?.[0] || "");
 }), 30000);
 
+// EventSource retries on its own only after a dropped connection; an error response (a proxy's 502 while the
+// server restarts) closes it for good, and a proxied stream can die silently. So: reconnect with backoff whenever
+// it closes, and whenever nothing (not even the 15 s ping) has arrived for 40 s.
+const PAGE = "{{PAGE}}";
+let es, lastMsg = Date.now(), backoff = 1000;
 function connect() {
   const once = new URLSearchParams(location.search).has("once");
-  const es = new EventSource(once ? "/events?once" : "/events");
+  es = new EventSource(once ? "/events?once" : "/events");
   if (once) es.addEventListener("message", m => { if (m.data.includes('"synced"')) es.close(); });
-  es.onopen = () => $("#dot").classList.add("on");
-  es.onmessage = m => { try { apply(JSON.parse(m.data)); } catch (e) { console.error(e); } };
-  es.onerror = () => $("#dot").classList.remove("on");
+  es.onopen = () => { $("#dot").classList.add("on"); backoff = 1000; lastMsg = Date.now(); };
+  es.onmessage = m => {
+    lastMsg = Date.now();
+    try {
+      const ev = JSON.parse(m.data);
+      if (ev.type === "hello") { if (ev.page !== PAGE && !once) reloadKeepingPlace(); return; }
+      apply(ev);
+    } catch (e) { console.error(e); }
+  };
+  es.onerror = () => {
+    $("#dot").classList.remove("on");
+    if (es.readyState === EventSource.CLOSED && !once) { setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 15000); }
+  };
 }
+setInterval(() => {
+  if (es && es.readyState !== EventSource.CLOSED && Date.now() - lastMsg > 40000) { es.close(); $("#dot").classList.remove("on"); connect(); }
+}, 5000);
+function reloadKeepingPlace() {
+  try { sessionStorage.setItem("feed-scroll", String(scrollY)); } catch {}
+  location.reload();
+}
+addEventListener("load", () => {
+  let y = null;
+  try { y = sessionStorage.getItem("feed-scroll"); sessionStorage.removeItem("feed-scroll"); } catch {}
+  if (y) setTimeout(() => scrollTo({ top: +y, behavior: "instant" }), 1800);
+});
 connect();
 setTimeout(() => { if (!live) { live = true; render(); } }, 1500);   // an empty log never sends "synced"
 </script>
