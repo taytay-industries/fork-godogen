@@ -217,6 +217,17 @@ WSL has no Linux NVIDIA driver and no `nvidia_icd.json`. The GPU reaches Linux t
   sudo apt-get update && sudo apt-get upgrade -y
   ```
 
+  Without `sudo`, the same driver works from a user-local copy: pull `libvulkan_dzn.so` out of the PPA's `mesa-vulkan-drivers` package and point the Vulkan loader at it. The loader then sees only this driver — drop the variable once the PPA is installed system-wide.
+
+  ```bash
+  base=https://ppa.launchpadcontent.net/kisak/kisak-mesa/ubuntu/pool/main/m/mesa/
+  deb=$(. /etc/os-release; curl -s $base | grep -oE "mesa-vulkan-drivers_[^\"]*~${VERSION_CODENAME:0:1}_amd64\.deb" | sort -V | tail -1)   # ~r = resolute, ~n = noble
+  curl -so /tmp/vk.deb "$base$deb" && dpkg-deb -x /tmp/vk.deb /tmp/vk
+  mkdir -p ~/.local/opt/dzn && cp /tmp/vk/usr/lib/x86_64-linux-gnu/libvulkan_dzn.so ~/.local/opt/dzn/
+  printf '{"file_format_version":"1.0.1","ICD":{"api_version":"1.1","library_path":"%s"}}\n' ~/.local/opt/dzn/libvulkan_dzn.so > ~/.local/opt/dzn/dzn_icd.json
+  echo 'export VK_DRIVER_FILES=$HOME/.local/opt/dzn/dzn_icd.json' >> ~/.bashrc
+  ```
+
 - **OpenGL** uses Mesa's `d3d12` Gallium driver, already in Ubuntu's Mesa, but Mesa picks `llvmpipe` unless told otherwise. Add to `~/.bashrc`:
 
   ```bash
@@ -226,6 +237,10 @@ WSL has no Linux NVIDIA driver and no `nvidia_icd.json`. The GPU reaches Linux t
 `dzn` exposes Vulkan 1.2, is flagged non-conformant (it warns `dzn is not a conformant Vulkan implementation`), and runs Godot's Forward+ renderer. **SSAO renders a regular dot-grid pattern on it** — a driver bug, not the scene; shadows, SSIL, glow, and volumetric fog render the same as on `llvmpipe`. Leave SSAO off for WSL captures or treat the pattern as known.
 
 WSLg provides `DISPLAY=:0`, so `godot --path .` opens a window on the Windows desktop. `xvfb-run` still works and keeps unattended captures off the desktop.
+
+Agents run commands in fresh non-interactive shells that may skip `~/.bashrc`: put `GALLIUM_DRIVER` and `VK_DRIVER_FILES` in whatever launches the agent too, and check the `renderer` line of a capture — `llvmpipe` there means the variables didn't reach it.
+
+Getting results in front of the user from WSL: `explorer.exe "$(wslpath -w video.mp4)"` plays a file on the Windows desktop, `explorer.exe /select,"$(wslpath -w file)"` shows it in its folder. Windows reaches servers in WSL at `localhost:<port>`. Tailscale runs on the Windows side, not in WSL, so expose a WSL server to the user's other devices with `tailscale.exe serve --bg --https=<port> http://localhost:<wsl-port>` (tailnet-only). Windows' localhost forwarding for one port can wedge — requests from Windows time out while `curl` inside WSL answers — typically after a client dies mid-download; serving on a different port gets around it.
 
 ## Verify Rendering
 
