@@ -122,7 +122,7 @@ FEED="python3 ${ASSET_GEN_SKILL_DIR}/tools/feed.py"
 $FEED serve            # http://127.0.0.1:8765; for a remote user, expose it on their tailnet (tailscale serve)
 ```
 
-`asset_gen.py` and `audio_prep.py` log themselves. Prefix every other generator call with `$FEED run --` — it logs the command as a pending job, links input files named on the command line, and reads outputs and cost from the command's JSON (`tripo` credits included). Pass `--cost` where the command doesn't report it (ElevenLabs: `--cost "18 ElevenLabs cr"` from audio.md's rates), `--title` for a readable name, `--eta` seconds for the progress bar. The watcher logs anything else that lands in `${RUNTIME_ASSET_DIR}/`, `refs/`, or `screenshots/`, so captures appear on their own.
+`asset_gen.py` and `audio_prep.py` log themselves. Prefix every other generator call with `$FEED run --` — it logs the command as a pending job, links input files named on the command line, and reads outputs and cost from the command's JSON (`tripo` credits included). Pass `--cost` where the command doesn't report it (ElevenLabs: `--cost "18 ElevenLabs cr"` from audio.md's rates), `--title` for a readable name, `--eta` seconds for the progress bar. After a `tripo` or `elevenlabs` job it records the credits left on the account (ElevenLabs' counter lags, so it re-reads a few minutes later), and `serve` keeps the header's balances current — start it with the API keys in its environment. The watcher logs anything else that lands in `${RUNTIME_ASSET_DIR}/`, `refs/`, or `screenshots/`, so captures appear on their own.
 
 Log judgment as well as files — this is where the user sees what happened and why:
 

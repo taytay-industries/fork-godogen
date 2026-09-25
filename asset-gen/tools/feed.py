@@ -166,6 +166,42 @@ def parse_cost(s: str) -> list:
     return [{"n": float(m.group(1)), "unit": m.group(2).strip() or "¢"}] if m else []
 
 
+# --- balances: what's left on the account after a job ------------------------------------------------------
+
+def _cli_json(argv: list) -> dict | None:
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+        return json.loads(r.stdout) if r.returncode == 0 else None
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
+def read_balance(service: str) -> dict | None:
+    """Credits left on the account, from the vendor CLI: {"n": ..., "unit": ...}."""
+    if service == "tripo":
+        d = _cli_json(["tripo", "balance", "--json"])
+        return d and {"n": d["balance"], "unit": "Tripo cr"}
+    if service == "elevenlabs":
+        d = _cli_json(["elevenlabs", "user", "subscription", "get", "--format", "json",
+                       "--query", "{used: character_count, limit: character_limit}"])
+        return d and {"n": d["limit"] - d["used"], "unit": "ElevenLabs cr"}
+    return None
+
+
+def log_balance(job: str, service: str, note: str | None = None):
+    b = read_balance(service)
+    if b:
+        emit({"type": "balance", "job": job, "left": [b], "note": note})
+    return b
+
+
+def cmd_settle(a):
+    """ElevenLabs' usage counter lags its requests by minutes: read it again later and correct the job's figure."""
+    for delay in (90, 240):
+        time.sleep(delay)
+        safe(log_balance, a.job, a.service, "settled")
+
+
 # --- run: wrap any generator CLI -----------------------------------------------------------------------------
 
 OUT_KEYS = ("path", "output", "output_path", "model_file", "saved_file", "file", "preview")
@@ -272,6 +308,12 @@ def cmd_run(a):
     log = ("".join(err_tail[-12:]) + ("\n" + stdout[-1500:] if stdout.strip() else "")).strip()[-3000:]
     done(job, files=list(dict.fromkeys(files)), cost=cost, ok=ok, error=err, log=log,
          info=info if isinstance(info, dict) else None)
+    service = tool if tool in ("tripo", "elevenlabs") else None
+    if job and service and os.environ.get("FEED") != "0":
+        b = safe(log_balance, job, service)
+        if b and service == "elevenlabs":
+            subprocess.Popen([sys.executable, __file__, "_settle", job, service], start_new_session=True,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=ROOT)
     sys.exit(code)
 
 
@@ -522,8 +564,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache")
         self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
-        # The page reloads itself when it was served from an older feed.html.
-        self.wfile.write(f'data: {{"type":"hello","page":"{page_version()}"}}\n\n'.encode())
+        # The page reloads itself when it was served from an older feed.html — on connect, and whenever it changes.
+        version = page_version()
+        self.wfile.write(f'data: {{"type":"hello","page":"{version}"}}\n\n'.encode())
         # Every connection replays the log from the top; the page dedupes by event id.
         offset, idle = 0, 0.0
         try:
@@ -536,6 +579,9 @@ class Handler(BaseHTTPRequestHandler):
                     cut = chunk.rfind("\n") + 1
                     lines = chunk[:cut].splitlines()
                     offset += len(chunk[:cut].encode())
+                if (v := page_version()) != version:
+                    version = v
+                    self.wfile.write(f'data: {{"type":"hello","page":"{v}"}}\n\n'.encode())
                 for line in lines:
                     self.wfile.write(f"data: {line}\n\n".encode())
                 if lines or once:
@@ -585,11 +631,23 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
 
+def poll_balances(every: float = 300):
+    """Keep the header's 'left' figures current, including spending done outside the feed."""
+    last = {}
+    while True:
+        for service in ("tripo", "elevenlabs"):
+            if shutil.which(service) and (b := safe(read_balance, service)) and last.get(service) != b["n"]:
+                last[service] = b["n"]
+                emit({"type": "balance", "job": None, "left": [b], "note": "account balance"})
+        time.sleep(every)
+
+
 def cmd_serve(a):
     FEED.mkdir(exist_ok=True)
     dirs = watch_dirs(a.watch)
     if not a.no_watch:
         Watcher(dirs, a.backfill).start()
+    threading.Thread(target=poll_balances, daemon=True).start()
     ThreadingHTTPServer.request_queue_size = 64      # each open page holds a stream; the default backlog is 5
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     srv.daemon_threads = True
@@ -634,6 +692,11 @@ def main():
     n.add_argument("text")
     n.add_argument("--file", action="append")
     n.set_defaults(func=cmd_note)
+
+    st = sub.add_parser("_settle")          # internal: the delayed ElevenLabs re-read
+    st.add_argument("job")
+    st.add_argument("service")
+    st.set_defaults(func=cmd_settle)
 
     m = sub.add_parser("mark", help="mark the current version of a file kept or rejected")
     m.add_argument("file")

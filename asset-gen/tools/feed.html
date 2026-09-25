@@ -46,6 +46,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 16px; display: flex; flex-dir
 .when { color: var(--dim); font-size: 12px; margin-left: auto; white-space: nowrap; }
 .badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 4px; padding: 1px 6px; }
 .badge.cost { background: #232833; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.badge.left { background: #1b2a33; color: #9fd8ff; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.stats .left b { color: #9fd8ff; }
 .badge.kept { background: #1d3b2a; color: var(--accent); } .badge.rejected { background: #45202a; color: var(--bad); }
 .badge.fail { background: #45202a; color: var(--bad); } .badge.run { background: #1d3b2a; color: var(--accent); }
 .prompt { color: #c9ccd6; margin: 6px 0 0; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3;
@@ -132,6 +134,7 @@ const KIND_GUESS = [[/tripo|glb/i, "model"], [/elevenlabs|audio_prep|music|sound
 const cards = new Map();      // id -> card state
 const byBlob = new Map();     // blob -> card id
 const seen = new Set();
+const latestLeft = {};        // unit -> newest reading, for the header
 let live = false, filter = new URLSearchParams(location.search).get("filter") || "all", unseenNew = 0;
 
 function kinds(c) {
@@ -174,6 +177,15 @@ function apply(ev) {
     }
     case "note":
       c = { ...ev, copies: {} }; cards.set(c.id, c); break;
+    case "balance": {
+      const oc = cards.get(ev.job);
+      const at = ev.at || ev.t;                // backfilled readings carry the time they applied to
+      for (const b of ev.left) if (!(latestLeft[b.unit]?.t > at)) latestLeft[b.unit] = { n: b.n, t: at };
+      if (!oc) { stats(); return; }
+      if (ev.cost?.length && !oc.cost?.length) oc.cost = ev.cost;     // a backfill can supply a cost the job never reported
+      oc.left = { ...(oc.left || {}), ...Object.fromEntries(ev.left.map(b => [b.unit, { ...b, note: ev.note }])) };
+      return touch(oc);
+    }
     case "attach": {
       const oc = cards.get(ev.job);
       if (!oc) return;
@@ -253,6 +265,9 @@ function renderCard(c) {
     c.ok === false && h("span", { class: "badge fail" }, "failed"),
     c.status && c.files?.length > 1 && h("span", { class: `badge ${c.status}` }, c.status),
     costs && h("span", { class: "badge cost" }, costs),
+    ...Object.values(c.left || {}).map(b => h("span", { class: "badge left", title: b.note ||
+      "balance read right after this job; ElevenLabs' counter can lag a few minutes and is re-read later" },
+      `${Math.round(b.n).toLocaleString()} ${b.unit} left`)),
     c.sequence && h("span", { class: "badge cost" }, `${c.sequence} frames`),
     h("span", { class: "when", title: new Date(c.t * 1000).toLocaleString(), "data-ago": c.t },
       ago(c.t) + (secs && secs > 1 ? ` · took ${clock(secs)}` : ""))));
@@ -405,7 +420,8 @@ function stats() {
   const s = $("#stats"); s.replaceChildren(
     h("span", { class: running ? "busy" : "" }, h("b", {}, running), " running"),
     ...Object.entries(counts).map(([k, n]) => h("span", {}, h("b", {}, n), ` ${k}${n === 1 ? "" : "s"}`)),
-    ...Object.entries(spend).map(([u, n]) => h("span", {}, h("b", {}, +n.toFixed(2)), ` ${u}`)));
+    ...Object.entries(spend).map(([u, n]) => h("span", {}, h("b", {}, +n.toFixed(2)), ` ${u} spent`)),
+    ...Object.entries(latestLeft).map(([u, b]) => h("span", { class: "left" }, h("b", {}, Math.round(b.n).toLocaleString()), ` ${u} left`)));
 }
 
 function showPill() {
