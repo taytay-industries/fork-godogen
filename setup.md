@@ -58,18 +58,19 @@ Babylon capture prefers hardware WebGL2. A fallback to a software renderer (Swif
 ## System Packages
 
 ```bash
-sudo apt-get install vulkan-tools xvfb ffmpeg imagemagick
+sudo apt-get install vulkan-tools xvfb ffmpeg imagemagick git-lfs
 ```
 
 - **vulkan-tools** — `vulkaninfo` for GPU validation
 - **xvfb** — virtual X11 display for headless Godot/Bevy runs and capture
 - **ffmpeg** — MP4 encoding of proof videos and sprite frame extraction
 - **imagemagick** — image resize, flip, crop for sprite pipelines
+- **git-lfs** — published repos commit generated models, images, audio, and video through Git LFS
 
 On macOS:
 
 ```bash
-brew install coreutils ffmpeg dotnet@9
+brew install coreutils ffmpeg dotnet@9 git-lfs
 ```
 
 ## Python
@@ -88,6 +89,8 @@ In a published game repo, the same asset-generation requirements file lives at:
 - `.agents/skills/asset-gen/tools/requirements.txt` for Codex
 
 `google-genai` is required by `asset_gen.py` for Gemini image generation.
+
+The Godot capture tool (`tools/capture.py` in a published repo) is a uv script that declares its own dependencies — install [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`) and run it with `uv run`.
 
 ## Godot (.NET edition)
 
@@ -205,10 +208,56 @@ Set in environment:
 
 Either image key is enough; with both, Gemini is the default and quality-critical assets are generated on each.
 - `TRIPO_API_KEY` — image-to-3D conversion via the `tripo` CLI (`npm install -g tripo-cli`, Node 20+)
+- `ELEVENLABS_API_KEY` — voices, sound effects, and music via the `elevenlabs` CLI (`npm install -g @elevenlabs/cli`); optional. Give the key "User: Read" permission too, so usage and credits left can be read.
+
+## WSL2 (Windows)
+
+WSL has no Linux NVIDIA driver and no `nvidia_icd.json`. The GPU reaches Linux through `/dev/dxg` and the libraries in `/usr/lib/wsl/lib`, which speak D3D12 and CUDA — so CUDA (`nvidia-smi`, `onnxruntime-gpu`) works out of the box, but graphics need Mesa to translate to D3D12:
+
+- **Vulkan** needs Mesa's `dzn` ("Dozen", Vulkan over D3D12). Ubuntu's `mesa-vulkan-drivers` leaves it out, so stock Vulkan is `llvmpipe` on the CPU — ~20 s per frame on a heavy 1080p scene, too slow for video. The [kisak-mesa PPA](https://launchpad.net/~kisak/+archive/ubuntu/kisak-mesa) ships it (`libvulkan_dzn.so`, `dzn_icd.json`); upgrade all Mesa packages together:
+
+  ```bash
+  sudo add-apt-repository -y ppa:kisak/kisak-mesa
+  sudo apt-get update && sudo apt-get upgrade -y
+  ```
+
+  Without `sudo`, the same driver works from a user-local copy: pull `libvulkan_dzn.so` out of the PPA's `mesa-vulkan-drivers` package and point the Vulkan loader at it. The loader then sees only this driver — drop the variable once the PPA is installed system-wide.
+
+  ```bash
+  base=https://ppa.launchpadcontent.net/kisak/kisak-mesa/ubuntu/pool/main/m/mesa/
+  deb=$(. /etc/os-release; curl -s $base | grep -oE "mesa-vulkan-drivers_[^\"]*~${VERSION_CODENAME:0:1}_amd64\.deb" | sort -V | tail -1)   # ~r = resolute, ~n = noble
+  curl -so /tmp/vk.deb "$base$deb" && dpkg-deb -x /tmp/vk.deb /tmp/vk
+  mkdir -p ~/.local/opt/dzn && cp /tmp/vk/usr/lib/x86_64-linux-gnu/libvulkan_dzn.so ~/.local/opt/dzn/
+  printf '{"file_format_version":"1.0.1","ICD":{"api_version":"1.1","library_path":"%s"}}\n' ~/.local/opt/dzn/libvulkan_dzn.so > ~/.local/opt/dzn/dzn_icd.json
+  echo 'export VK_DRIVER_FILES=$HOME/.local/opt/dzn/dzn_icd.json' >> ~/.bashrc
+  ```
+
+- **OpenGL** uses Mesa's `d3d12` Gallium driver, already in Ubuntu's Mesa, but Mesa picks `llvmpipe` unless told otherwise. Add to `~/.bashrc`:
+
+  ```bash
+  export GALLIUM_DRIVER=d3d12
+  ```
+
+`dzn` exposes Vulkan 1.2, is flagged non-conformant (it warns `dzn is not a conformant Vulkan implementation`), and runs Godot's Forward+ renderer. **SSAO renders a regular dot-grid pattern on it** — a driver bug, not the scene; shadows, SSIL, glow, and volumetric fog render the same as on `llvmpipe`. Leave SSAO off for WSL captures or treat the pattern as known.
+
+WSLg provides `DISPLAY=:0`, so `godot --path .` opens a window on the Windows desktop. `xvfb-run` still works and keeps unattended captures off the desktop.
+
+Agents run commands in fresh non-interactive shells that may skip `~/.bashrc`: put `GALLIUM_DRIVER` and `VK_DRIVER_FILES` in whatever launches the agent too, and check the `renderer` line of a capture — `llvmpipe` there means the variables didn't reach it.
+
+Getting results in front of the user from WSL: `explorer.exe "$(wslpath -w video.mp4)"` plays a file on the Windows desktop, `explorer.exe /select,"$(wslpath -w file)"` shows it in its folder. Windows reaches servers in WSL at `localhost:<port>`. Tailscale runs on the Windows side, not in WSL, so expose a WSL server to the user's other devices with `tailscale.exe serve --bg --https=<port> http://localhost:<wsl-port>` (tailnet-only). Windows' localhost forwarding for one port can wedge — requests from Windows time out while `curl` inside WSL answers — typically after a client dies mid-download; serving on a different port gets around it.
 
 ## Verify Rendering
 
 ```bash
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json vulkaninfo --summary 2>&1 | grep "deviceName"
 xvfb-run -a godot --headless --quit
+```
+
+On WSL, skip `VK_ICD_FILENAMES` and look for the D3D12 device, then confirm Godot picks it:
+
+```bash
+vulkaninfo --summary 2>&1 | grep -E "deviceName|driverName"   # Microsoft Direct3D12 (NVIDIA ...) / Dozen
+glxinfo -B | grep "renderer string"                            # D3D12 (NVIDIA ...)   — glxinfo is in mesa-utils
+xvfb-run -a godot --rendering-driver vulkan --write-movie /tmp/v.png --quit-after 2 2>&1 | grep "Using Device"
+# Vulkan 1.2.x - Forward+ - Using Device #0: NVIDIA - Microsoft Direct3D12 (NVIDIA ...)
 ```

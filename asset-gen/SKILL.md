@@ -1,16 +1,16 @@
 ---
 name: asset-gen
 display_name: Asset Generator
-short_description: Generate game images, GLB 3D models, rigged characters, and animated sprites
-default_prompt: "Use ${ASSET_SKILL_COMMAND} to generate images, 3D models, or animated sprites for this game."
+short_description: Generate game images, GLB 3D models, rigged characters, animated sprites, voices, sound effects, and music
+default_prompt: "Use ${ASSET_SKILL_COMMAND} to generate images, 3D models, animated sprites, or audio for this game."
 allow_implicit_invocation: true
 description: |
-  Generate visual assets from text prompts: PNG images (Gemini / xAI Grok, or local Qwen-Image when installed), GLB 3D models (Tripo CLI), rigged characters, retargeted animations, and frame-by-frame animated sprites, plus background removal. Use whenever a game needs generated art.
+  Generate visual assets from text prompts: PNG images (Gemini / xAI Grok, or local Qwen-Image when installed), GLB 3D models (Tripo CLI), rigged characters, retargeted animations, and frame-by-frame animated sprites, plus background removal; voice lines, sound effects, music, and voice conversion (ElevenLabs). Use whenever a game needs generated art or audio.
 ---
 
 # Asset Generator
 
-Generate PNG images (Gemini or xAI Grok) and GLB 3D models (Tripo) from text prompts. These are paid APIs — every call costs real money. The free exception is `qwen-image`, a local GPU generator some machines have. Image tools live at `${ASSET_GEN_SKILL_DIR}/tools/`; 3D goes through the `tripo` CLI. Run from the project root and keep runtime-loaded outputs under `${RUNTIME_ASSET_DIR}/`.
+Generate PNG images (Gemini or xAI Grok), GLB 3D models (Tripo), and audio (ElevenLabs) from text prompts. These are paid APIs — every call costs real money. The free exception is `qwen-image`, a local GPU generator some machines have. Image tools live at `${ASSET_GEN_SKILL_DIR}/tools/`; 3D goes through the `tripo` CLI. Run from the project root and keep runtime-loaded outputs under `${RUNTIME_ASSET_DIR}/`. The `tripo` and `elevenlabs-*` skills are the vendors' own full CLI references; this skill covers what matters for games. For any other service, look for its official CLI before writing API code.
 
 ## Models
 
@@ -20,7 +20,7 @@ Generate PNG images (Gemini or xAI Grok) and GLB 3D models (Tripo) from text pro
 | Grok Imagine Image 2.0 | `--model grok` | 6¢ (1K) · 8¢ (2K), +1¢ per reference image | 1–2 min per image |
 | Qwen-Image | `qwen-image` CLI (local, if installed) | free, minutes per image | Simple images — textures, props, icons, UI, backgrounds, in-image text; native transparency |
 
-Gemini and Grok are equally strong: both follow detailed prompts closely, and both slip on small details — a miscounted item, a mirrored left/right. Use whichever key is set; with both, `asset_gen.py` defaults to Gemini for speed. When an asset is quality-critical (a character reference that anchors 3D or animation, a hero image) and both keys are set, generate it with both and keep the better one.
+A free-tier Gemini key has no quota for the image model (every call returns `429 RESOURCE_EXHAUSTED`) — use `--model grok` then. Gemini and Grok are equally strong: both follow detailed prompts closely, and both slip on small details — a miscounted item, a mirrored left/right. Use whichever key is set; with both, `asset_gen.py` defaults to Gemini for speed. When an asset is quality-critical (a character reference that anchors 3D or animation, a hero image) and both keys are set, generate it with both and keep the better one.
 
 ## Images
 
@@ -74,15 +74,18 @@ Reuse one reference for all of a character's actions. **Chaining** (feed action 
 The `tripo` CLI (`npm install -g tripo-cli`, key in `TRIPO_API_KEY`) owns the whole 3D path: submit, poll, download, credit pre-check, refunds on failure. Its own agent docs are the reference — `tripo docs --llm`, then `tripo docs --topic commands/process` / `examples/animation` / `common-errors` — this section only covers what is specific to game use here.
 
 ```bash
-tripo make ref.png --name car -p face_limit=30000 -p auto_size=true --json --yes -o ${RUNTIME_ASSET_DIR}/glb
-tripo make ref.png --name hero --then rig-check,rig:model=v1.0-20240301 --json --yes -o ${RUNTIME_ASSET_DIR}/glb
-tripo anim retarget @hero --animation preset:biped:walk preset:biped:idle --json --yes -o ${RUNTIME_ASSET_DIR}/glb
+$FEED run --eta 120 -- tripo make ref.png --name car -p face_limit=30000 -p auto_size=true --json --yes -o ${RUNTIME_ASSET_DIR}/glb
+$FEED run --eta 300 -- tripo make ref.png --name hero --then rig-check,rig:model=v1.0-20240301 --json --yes -o ${RUNTIME_ASSET_DIR}/glb
+$FEED run -- tripo anim retarget @hero --animation preset:biped:walk preset:biped:idle --json --yes -o ${RUNTIME_ASSET_DIR}/glb
 ```
 
 - `make` is blocking (default timeout 30 min) and prints one JSON line: read `model_file`, `preview.png` and `credits_consumed` from it. Never add your own shorter timeout, never resubmit because a task_id appeared in stderr. If the process does die, `tripo task watch <id> --download` finishes the same task for free.
-- Output lands in `<-o dir>/<name>-<id8>/` (`model.glb`, `preview.png`, `task.json`). Move or reference the GLB from there; `task.json` keeps the seeds and task id, so there is nothing else to save.
-- `--name X` makes the task addressable as `@X` for later steps (retarget, convert, decimate). Retarget reuses the rig task — never re-rig for another clip; up to 5 animations per call, billed per animation.
-- Model defaults to v3.1. For `face_limit` ≤ 20000 the CLI silently switches to P1 (low-poly topology, no `geometry_quality`) — that is the right choice for mobile-style budgets, but know it happens. `--for game-pc` converts to FBX by default; skip it for GLB engines.
+- Read output paths from `model_file` in the JSON rather than building them: `-o tripo-out` has written to `tripo-out/tripo-out/<name>-<id8>/` (`model.glb`, `preview.png`, `task.json`). `task.json` keeps the seeds and task id, so there is nothing else to save.
+- `--name X` makes the task addressable as `@X` for later steps (retarget, convert, decimate) — but underscores are stored as hyphens (`--name villager_a` → `@villager_a` fails), so pass the task id from the JSON instead. Retarget reuses the rig task — never re-rig for another clip.
+- **Retarget one clip per call.** Several `--animation` presets in one call returned a single GLB holding only the last clip, billed for all of them. The clips share the rig's bone paths, so merge them into one model afterwards (godot: `tools/AnimLab.cs --anim a.glb --anim b.glb --export`). Rigged models are not auto-sized (~1 unit tall) and their imported clips don't loop — scale to height and set the loop mode.
+- Raw rigged clips arrive with faults the engine must remove: the walk drifts ~1 m per cycle and snaps back at the loop even with `--animate-in-place`, the importer duplicates the first key (a one-frame freeze each loop), and the walk travels toward model +X. Godot's `tools/AnimLab.cs` measures and fixes all of these at import (godot.md).
+- **Facing varies by model:** image-to-model GLBs have come out facing +X in one project and +Z in another. Check a new batch before placing it (godot: `tools/Facing.cs`).
+- Model defaults to v3.1. For `face_limit` ≤ 20000 the CLI silently switches to P1 (low-poly topology, no `geometry_quality`, 50 credits instead of 30) — that is the right choice for mobile-style budgets and riggable characters, but know it happens. `--for game-pc` converts to FBX by default; skip it for GLB engines.
 - `-p geometry_quality=detailed -p texture_quality=detailed` is the HD tier (≈ double credits).
 - Rig: keep `rig:model=v1.0-20240301` for bipeds — that is the rig motion.md's pipeline is certified against, and it uses the `preset:biped:*` clips below. The CLI's default rig (v2.5) covers quadrupeds, avians, etc. with `preset:<name>` clips (`idle walk run dive climb jump slash shoot hurt fall turn`); unverified with motion.md. `rig-check` in the chain aborts before rigging if the mesh isn't riggable. `--animate-in-place` when game code drives locomotion.
 - Don't assume the preset name survives into the GLB; inspect the imported clip names before wiring playback.
@@ -105,9 +108,36 @@ victory_celebration volleyball wait walk warm_up wave_goodbye_01/02
 
 Presets are generic stock clips. **Important:** when gameplay needs a custom humanoid move set (state machines, root-motion locomotion, moves not in this list), read `${ASSET_GEN_SKILL_DIR}/motion.md`.
 
+## Audio
+
+Voice lines, sound effects, music, and voice conversion come from the official `elevenlabs` CLI (ElevenLabs), and every file goes through `tools/audio_prep.py` to convert it for the engine and catch silent intros, loops that swell, and uneven levels. Read `${ASSET_GEN_SKILL_DIR}/audio.md` before generating any.
+
+## Keys
+
+Keys live in the environment (conventionally `~/.config/godogen/env`). Never ask the user to paste a key into the chat. When one is missing and the user can't reach a terminal on this machine, run `python3 ${ASSET_GEN_SKILL_DIR}/tools/keydrop.py ELEVENLABS_API_KEY` (or `TRIPO_API_KEY`, `XAI_API_KEY`, `GEMINI_API_KEY`): a one-shot page that checks the key with its service and saves it at 0600. Put it behind HTTPS they can reach (`tailscale serve`), send them the URL, and turn the proxy off after.
+
 ## Costs
 
-Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model, ~25 to rig, ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate.
+Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model (50 on P1), ~25 to rig — a P1 model + rig chain is 75 — ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate. ElevenLabs bills credits from the plan's monthly quota (sound effects ~10 per second); read usage before and after a batch (audio.md).
+
+## Asset feed
+
+`tools/feed.py` is a live page of this project's generated assets, for the user to watch while you work: a card appears when a generation starts (prompt, elapsed time) and fills in when it finishes — images, spinning GLBs with their animation clips, audio waveforms, videos — with cost, the input files it came from, and every earlier version (files are snapshotted by content hash into `.feed/`, which is gitignored). At the start of a session, start it in the background unless `curl -s localhost:8765` already answers, and give the user the URL:
+
+```bash
+FEED="python3 ${ASSET_GEN_SKILL_DIR}/tools/feed.py"
+$FEED serve            # http://127.0.0.1:8765; for a remote user, expose it on their tailnet (tailscale serve)
+```
+
+`asset_gen.py` and `audio_prep.py` log themselves. Prefix every other generator call with `$FEED run --` — it logs the command as a pending job, links input files named on the command line, and reads outputs and cost from the command's JSON (`tripo` credits included). Pass `--cost` where the command doesn't report it (ElevenLabs: `--cost "18 ElevenLabs cr"` from audio.md's rates), `--title` for a readable name, `--eta` seconds for the progress bar. After a `tripo` or `elevenlabs` job it records the credits left on the account (ElevenLabs' counter lags, so it re-reads a few minutes later), and `serve` keeps the header's balances current — start it with the API keys in its environment. The watcher logs anything else that lands in `${RUNTIME_ASSET_DIR}/`, `refs/`, or `screenshots/`, so captures appear on their own.
+
+Log judgment as well as files — this is where the user sees what happened and why:
+
+```bash
+$FEED note "User: the hum swells into noise near the end — flattening it" --file ${RUNTIME_ASSET_DIR}/audio/sfx/hum.ogg
+$FEED mark raw/take_2.mp3 rejected "reads as sarcastic"      # or: kept
+$FEED add refs/lineup.png --title "all four heads" --from refs/head_a.png    # a file no tool logged
+```
 
 ## Output and logging
 

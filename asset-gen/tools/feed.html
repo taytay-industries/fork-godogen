@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{PROJECT}} · asset feed</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='%235aff9c'/></svg>">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.2.0/dist/model-viewer.min.js"></script>
+<style>
+:root {
+  --bg: #0f1115; --panel: #171a21; --panel2: #1e222b; --line: #2a2f3a; --text: #e6e8ee; --dim: #8a90a0;
+  --accent: #5aff9c; --warn: #ffb454; --bad: #ff6b6b; --image: #7cc4ff; --model: #c49bff; --audio: #ffcf5a;
+  --video: #ff8fb3; --note: #9aa3b5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 10; background: rgba(15,17,21,.92); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line); padding: 10px 16px; }
+.bar { max-width: 1180px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+h1 { font-size: 16px; margin: 0; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--bad); }
+.dot.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.stats { color: var(--dim); display: flex; gap: 12px; flex-wrap: wrap; }
+.stats b { color: var(--text); font-weight: 600; }
+.busy b { color: var(--accent); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.chip { background: var(--panel2); border: 1px solid var(--line); color: var(--dim); border-radius: 999px; padding: 3px 10px;
+  cursor: pointer; font: inherit; font-size: 13px; }
+.chip.on { color: var(--bg); background: var(--text); border-color: var(--text); }
+.toggle { color: var(--dim); font-size: 13px; display: flex; gap: 5px; align-items: center; cursor: pointer; }
+main { max-width: 1180px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.empty { color: var(--dim); text-align: center; padding: 60px 0; }
+.card { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; border-left: 4px solid var(--note); }
+.card.k-image { border-left-color: var(--image); } .card.k-model { border-left-color: var(--model); }
+.card.k-audio { border-left-color: var(--audio); } .card.k-video { border-left-color: var(--video); }
+.card.fresh { animation: fresh 2.4s ease-out; }
+@keyframes fresh { from { box-shadow: 0 0 0 3px var(--accent); transform: translateY(-6px); } to { box-shadow: 0 0 0 0 transparent; } }
+.card.flash { animation: flash 1.2s; }
+@keyframes flash { 0%,60% { box-shadow: 0 0 0 3px var(--warn); } }
+.card.rejected { opacity: .5; }
+.card.rejected:hover { opacity: 1; }
+.tile.rejected { opacity: .55; } .card.rejected .tile.rejected { opacity: 1; }
+.head { min-width: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.title { font-weight: 600; word-break: break-all; }
+.tool { color: var(--dim); font-size: 12px; font-family: ui-monospace, monospace; }
+.when { color: var(--dim); font-size: 12px; margin-left: auto; white-space: nowrap; }
+.badge { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 4px; padding: 1px 6px; }
+.badge.cost { background: #232833; color: var(--text); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.badge.left { background: #1b2a33; color: #9fd8ff; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.stats .left b { color: #9fd8ff; }
+.badge.kept { background: #1d3b2a; color: var(--accent); } .badge.rejected { background: #45202a; color: var(--bad); }
+.badge.fail { background: #45202a; color: var(--bad); } .badge.run { background: #1d3b2a; color: var(--accent); }
+.prompt { color: #c9ccd6; margin: 6px 0 0; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; font-size: 13px; }
+.prompt.open { -webkit-line-clamp: unset; }
+.reason { color: var(--warn); margin-top: 4px; font-size: 13px; }
+.from { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; align-items: center; color: var(--dim); font-size: 12px; }
+.src { display: flex; align-items: center; gap: 5px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 2px 6px 2px 2px; cursor: pointer; color: var(--text); }
+.src img { width: 26px; height: 26px; object-fit: cover; border-radius: 4px; }
+.src span { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 10px; }
+.media.one { grid-template-columns: minmax(0, 560px); }
+.tile { background: var(--panel2); border-radius: 8px; overflow: hidden; border: 1px solid var(--line); min-width: 0; }
+.tile .label { padding: 5px 8px; font-size: 12px; color: var(--dim); display: flex; gap: 6px; justify-content: space-between; }
+.tile .label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile img, .tile video { display: block; width: 100%; max-height: 520px; object-fit: contain; background: #0b0c10; }
+.tile img { cursor: zoom-in; }
+.tile.wide { grid-column: span 2; }
+model-viewer { width: 100%; height: 300px; background: radial-gradient(circle at 50% 40%, #2a2f3a, #111318); --poster-color: transparent; }
+.anim { display: flex; gap: 6px; padding: 6px 8px 0; flex-wrap: wrap; }
+.audio { padding: 10px 10px 4px; display: flex; gap: 10px; align-items: center; }
+.play { flex: none; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--audio); color: #1a1400;
+  font-size: 15px; cursor: pointer; }
+.wave { flex: 1; min-width: 0; height: 56px; }
+.copies { font-size: 12px; color: var(--dim); padding: 0 8px 6px; }
+.pending { margin-top: 10px; height: 110px; border-radius: 8px; position: relative; overflow: hidden;
+  background: linear-gradient(100deg, var(--panel2) 30%, #262b36 50%, var(--panel2) 70%); background-size: 300% 100%;
+  animation: shimmer 1.6s linear infinite; display: flex; align-items: center; justify-content: center; color: var(--dim); }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+.progress { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); transition: width 1s linear; }
+.error { color: var(--bad); background: #2a1519; border-radius: 6px; padding: 6px 8px; margin-top: 8px; white-space: pre-wrap;
+  font-family: ui-monospace, monospace; font-size: 12px; word-break: break-word; }
+details { margin-top: 8px; } summary { color: var(--dim); cursor: pointer; font-size: 12px; }
+pre { white-space: pre-wrap; word-break: break-word; font-size: 11.5px; color: #b8bdc9; background: #0b0c10; padding: 8px; border-radius: 6px;
+  max-height: 260px; overflow: auto; margin: 6px 0 0; }
+.note { white-space: pre-wrap; margin-top: 4px; }
+.newpill { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 11; background: var(--accent); color: #062;
+  border: none; border-radius: 999px; padding: 6px 14px; font-weight: 700; cursor: pointer; display: none; }
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.9); z-index: 20; display: none; align-items: center; justify-content: center; cursor: zoom-out; }
+.lightbox img { max-width: 96vw; max-height: 94vh; }
+.label { align-items: center; }
+.acts { display: flex; gap: 4px; padding: 0 8px 7px; flex-wrap: wrap; }
+.copies.row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; } .copies.row .acts { padding: 0; }
+.copies.row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.act { background: #262b36; color: var(--text); border: 1px solid var(--line); border-radius: 5px; font: inherit; font-size: 11.5px;
+  padding: 2px 7px; cursor: pointer; } .act:hover { border-color: var(--dim); }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translate(-50%, 20px); background: #262b36; color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; z-index: 30; opacity: 0; transition: .2s; pointer-events: none;
+  max-width: 92vw; word-break: break-all; font-size: 13px; } .toast.on { opacity: 1; transform: translate(-50%, 0); }
+select { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 12px; }
+@media (max-width: 600px) { .tile.wide { grid-column: auto; } .when { margin-left: 0; } .filters { margin-left: 0; } .media, .media.one { grid-template-columns: minmax(0, 1fr); } model-viewer { height: 260px; } }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <h1><span class="dot" id="dot"></span>{{PROJECT}} <span style="color:var(--dim);font-weight:400">asset feed</span></h1>
+  <div class="stats" id="stats"></div>
+  <div class="filters" id="filters"></div>
+  <label class="toggle"><input type="checkbox" id="showRejected" checked> rejected</label>
+  <label class="toggle"><input type="checkbox" id="autoplay"> play new sounds</label>
+</div></header>
+<button class="newpill" id="newpill"></button>
+<main id="feed"><div class="empty" id="empty">Waiting for the first asset…</div></main>
+<div class="toast" id="toast"></div>
+<div class="lightbox" id="lightbox"><img alt=""></div>
+<script type="module">
+import WaveSurfer from "https://cdn.jsdelivr.net/npm/wavesurfer.js@7/dist/wavesurfer.esm.js";
+
+const $ = (s, el = document) => el.querySelector(s);
+const h = (tag, attrs = {}, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else if (k === "class") el.className = v; else el.setAttribute(k, v === true ? "" : v);
+  }
+  for (const k of kids.flat()) if (k != null && k !== false) el.append(k instanceof Node ? k : String(k));
+  return el;
+};
+const url = f => `/blob/${f.view || f.blob}`;
+const base = p => p.split("/").pop();
+const KIND_GUESS = [[/tripo|glb/i, "model"], [/elevenlabs|audio_prep|music|sound|speech/i, "audio"], [/video|capture/i, "video"], [/image|qwen|asset_gen/i, "image"]];
+
+const cards = new Map();      // id -> card state
+const byBlob = new Map();     // blob -> card id
+const seen = new Set();
+const latestLeft = {};        // unit -> newest reading, for the header
+let live = false, filter = new URLSearchParams(location.search).get("filter") || "all", unseenNew = 0;
+
+function kinds(c) {
+  if (c.type === "note") return new Set(["note"]);
+  const ks = new Set((c.files || []).map(f => f.kind));
+  if (!ks.size) { const g = KIND_GUESS.find(([re]) => re.test(`${c.tool} ${c.title} ${c.cmd || ""}`)); if (g) ks.add(g[1]); }
+  return ks;
+}
+
+function apply(ev) {
+  if (ev.type === "synced") { if (!live) { live = true; render(); } return; }
+  if (seen.has(ev.id)) return;
+  seen.add(ev.id);
+  let c;
+  switch (ev.type) {
+    case "start":
+      c = { ...ev, id: ev.job, pending: true, files: [], copies: {} };
+      cards.set(c.id, c); break;
+    case "done":
+      c = cards.get(ev.job) || { id: ev.job, t: ev.t, title: "job", copies: {} };
+      Object.assign(c, { pending: false, ok: ev.ok, files: ev.files, cost: ev.cost, error: ev.error, log: ev.log, tEnd: ev.t });
+      cards.set(c.id, c);
+      for (const f of ev.files) {          // the watcher may have shown this output before the job finished
+        const other = byBlob.get(f.blob);
+        const oc = other && cards.get(other);
+        if (oc && oc.watched && oc.id !== c.id) {
+          oc.files = oc.files.filter(x => x.blob !== f.blob);
+          if (!oc.files.length) { cards.delete(oc.id); oc.el?.remove(); } else touch(oc);
+        }
+      }
+      break;
+    case "file":
+      if (ev.watched && ev.files.every(f => byBlob.has(f.blob))) return;
+      c = { ...ev, copies: {} };
+      cards.set(c.id, c); break;
+    case "copy": {
+      const f = ev.files[0], oc = cards.get(byBlob.get(f.blob));
+      if (oc) { (oc.copies[f.blob] ||= []).push(f.path); return touch(oc); }
+      c = { ...ev, type: "file", title: f.path, copies: {} }; cards.set(c.id, c); break;
+    }
+    case "note":
+      c = { ...ev, copies: {} }; cards.set(c.id, c); break;
+    case "balance": {
+      const oc = cards.get(ev.job);
+      const at = ev.at || ev.t;                // backfilled readings carry the time they applied to
+      for (const b of ev.left) if (!(latestLeft[b.unit]?.t > at)) latestLeft[b.unit] = { n: b.n, t: at };
+      if (!oc) { stats(); return; }
+      if (ev.cost?.length && !oc.cost?.length) oc.cost = ev.cost;     // a backfill can supply a cost the job never reported
+      oc.left = { ...(oc.left || {}), ...Object.fromEntries(ev.left.map(b => [b.unit, { ...b, note: ev.note }])) };
+      return touch(oc);
+    }
+    case "attach": {
+      const oc = cards.get(ev.job);
+      if (!oc) return;
+      oc.files = [...(oc.files || []), ...ev.files];
+      for (const f of ev.files) byBlob.set(f.blob, oc.id);
+      return touch(oc);
+    }
+    case "mark": {
+      let oc = ev.blob && cards.get(byBlob.get(ev.blob));
+      if (!oc) oc = [...cards.values()].reverse().find(x => (x.files || []).some(f => f.path === ev.path));
+      if (oc) {
+        const f = oc.files.find(x => x.blob === ev.blob) || oc.files.findLast(x => x.path === ev.path);
+        if (f) (oc.marks ||= {})[f.blob] = ev;
+        oc.status = oc.files.every(x => oc.marks?.[x.blob]?.status === "rejected") ? "rejected" : "";
+        touch(oc);
+      }
+      return;
+    }
+    default: return;
+  }
+  for (const f of c.files || []) if (c.type !== "note" || !byBlob.has(f.blob)) byBlob.set(f.blob, c.id);
+  c.fresh = live;
+  touch(c);
+  if (live && $("#autoplay").checked) for (const f of c.files || []) if (f.kind === "audio") new Audio(url(f)).play().catch(() => {});
+}
+
+function touch(c) {
+  if (!live) return;
+  const el = renderCard(c);
+  if (c.el) c.el.replaceWith(el); else insert(el, c);
+  c.el = el;
+  if (c.fresh && !c.announced) {
+    c.announced = true;
+    if (window.scrollY > 200) { unseenNew++; showPill(); }
+  }
+  stats();
+}
+
+function insert(el, c) {
+  const feed = $("#feed");
+  $("#empty").style.display = "none";
+  for (const other of feed.children) {
+    if (other.dataset.t && +other.dataset.t < c.t) { feed.insertBefore(el, other); return; }
+  }
+  feed.append(el);
+}
+
+function render() {
+  const feed = $("#feed");
+  const list = [...cards.values()].sort((a, b) => b.t - a.t);
+  for (const c of list) { c.el = renderCard(c); feed.append(c.el); }
+  $("#empty").style.display = list.length ? "none" : "";
+  stats();
+  if (hashCard()) requestAnimationFrame(() => show(hashCard(), false));   // a shared #c-<id> link opens on its card
+}
+
+function ago(t) {
+  const s = Date.now() / 1000 - t;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return new Date(t * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+function renderCard(c) {
+  const ks = kinds(c);
+  const k = [...ks][0] || "note";
+  const el = h("article", { id: `c-${c.id}`, class: `card k-${k}${c.fresh && !c.el ? " fresh" : ""}${c.status === "rejected" ? " rejected" : ""}`,
+    "data-t": c.t, "data-kinds": [...ks].join(" "), "data-status": c.status || "" });
+  const costs = (c.cost || []).map(x => `${+x.n.toFixed(2)} ${x.unit}`).join(" · ");
+  const secs = c.tEnd && c.t ? c.tEnd - c.t : null;
+  el.append(h("div", { class: "head" },
+    h("span", { class: "title" }, c.type === "note" ? "Note" : c.title || (c.files?.[0]?.path) || "file"),
+    c.tool && h("span", { class: "tool" }, c.tool),
+    c.pending && h("span", { class: "badge run" }, "running"),
+    c.ok === false && h("span", { class: "badge fail" }, "failed"),
+    c.status && c.files?.length > 1 && h("span", { class: `badge ${c.status}` }, c.status),
+    costs && h("span", { class: "badge cost" }, costs),
+    ...Object.values(c.left || {}).map(b => h("span", { class: "badge left", title: b.note ||
+      "balance read right after this job; ElevenLabs' counter can lag a few minutes and is re-read later" },
+      `${Math.round(b.n).toLocaleString()} ${b.unit} left`)),
+    c.sequence && h("span", { class: "badge cost" }, `${c.sequence} frames`),
+    h("span", { class: "when", title: new Date(c.t * 1000).toLocaleString(), "data-ago": c.t },
+      ago(c.t) + (secs && secs > 1 ? ` · took ${clock(secs)}` : ""))));
+  if (c.text) el.append(h("div", { class: "note" }, c.text));
+  if (c.prompt) el.append(h("div", { class: "prompt", onclick: e => e.currentTarget.classList.toggle("open") }, c.prompt));
+  if (c.from?.length) el.append(h("div", { class: "from" }, "from",
+    c.from.map(f => h("span", { class: "src", title: f.path, onclick: () => jump(f.blob) },
+      f.kind === "image" ? h("img", { src: url(f), loading: "lazy", alt: "" }) : null, h("span", {}, base(f.path))))));
+  if (c.pending) {
+    const p = h("div", { class: "pending", "data-start": c.t, "data-eta": c.eta || "" }, "working…", h("div", { class: "progress" }));
+    el.append(p);
+  }
+  if (c.files?.length) {
+    el.append(h("div", { class: `media${c.files.length === 1 && c.files[0].kind !== "audio" ? " one" : ""}` },
+      c.files.map(f => tile(f, c))));
+  }
+  if (c.error) el.append(h("div", { class: "error" }, c.error));
+  if (c.log || c.cmd) el.append(h("details", {}, h("summary", {}, "command & output"),
+    h("pre", {}, [c.cmd && `$ ${c.cmd}`, c.log].filter(Boolean).join("\n\n"))));
+  applyFilter(el);
+  return el;
+}
+
+function tile(f, c) {
+  const mark = c.marks?.[f.blob];
+  const t = h("div", { class: `tile${mark?.status === "rejected" ? " rejected" : ""}${f.kind === "video" && c.files.length > 1 ? " wide" : ""}` });
+  if (f.kind === "image") {
+    t.append(h("img", { src: url(f), loading: "lazy", alt: f.path, onclick: () => lightbox(url(f)) }));
+  } else if (f.kind === "model") {
+    const mv = h("model-viewer", { src: url(f), "camera-controls": true, "auto-rotate": true, "rotation-per-second": "30deg",
+      "shadow-intensity": "1", exposure: "1.1", "environment-image": "neutral", loading: "lazy", "interaction-prompt": "none",
+      "touch-action": "pan-y" });
+    const anim = h("div", { class: "anim" });
+    mv.addEventListener("load", () => {
+      const names = mv.availableAnimations || [];
+      if (!names.length) return;
+      mv.animationName = names[0]; mv.play();
+      if (names.length > 1) anim.append(h("select", { onchange: e => { mv.animationName = e.target.value; mv.play(); } },
+        names.map(n => h("option", {}, n))));
+      else anim.append(h("span", { class: "tool" }, `▶ ${names[0]}`));
+    });
+    t.append(mv, anim);
+  } else if (f.kind === "audio") {
+    const wave = h("div", { class: "wave" });
+    const btn = h("button", { class: "play", title: "play" }, "▶");
+    t.append(h("div", { class: "audio" }, btn, wave));
+    lazy(t, () => {
+      const ws = WaveSurfer.create({ container: wave, url: url(f), height: 56, waveColor: "#6b6446", progressColor: "#ffcf5a",
+        cursorColor: "#fff", barWidth: 2, barGap: 1, barRadius: 2, normalize: true });
+      ws.on("play", () => btn.textContent = "❚❚"); ws.on("pause", () => btn.textContent = "▶"); ws.on("finish", () => btn.textContent = "▶");
+      ws.on("ready", d => { lbl.lastChild.textContent = `${d.toFixed(1)} s`; });
+      btn.onclick = () => ws.playPause();
+    });
+  } else if (f.kind === "video") {
+    const v = h("video", { src: url(f), muted: true, loop: true, playsinline: true, controls: true, preload: "metadata" });
+    v.muted = true;
+    t.append(v);
+    visible.observe(v);
+  }
+  const lbl = h("div", { class: "label" }, h("span", { title: f.path }, f.path), h("span", {}, kb(f.bytes)));
+  t.append(lbl, actions(f.path, f.blob));
+  if (mark) t.append(h("div", { class: "copies" }, h("span", { class: `badge ${mark.status}` }, mark.status), mark.reason ? ` ${mark.reason}` : ""));
+  const copies = c.copies?.[f.blob];
+  for (const cp of copies || []) t.append(h("div", { class: "copies row" }, h("span", { title: cp }, `→ ${cp}`), actions(cp)));
+  return t;
+}
+const kb = n => !n ? "" : n > 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+
+const visible = new IntersectionObserver(es => es.forEach(e => {
+  if (e.target.tagName === "VIDEO") { if (e.isIntersecting) e.target.play().catch(() => {}); else e.target.pause(); }
+}), { threshold: 0.4 });
+const lazyFns = new WeakMap();
+const lazyObs = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting && lazyFns.has(e.target)) { lazyFns.get(e.target)(); lazyFns.delete(e.target); lazyObs.unobserve(e.target); }
+}), { rootMargin: "400px" });
+function lazy(el, fn) { lazyFns.set(el, fn); lazyObs.observe(el); }
+
+// Following a link pushes a history entry: Back returns to where you were reading, Forward to the card again.
+function jump(blob) {
+  const c = cards.get(byBlob.get(blob));
+  if (!c?.el) return;
+  history.replaceState({ y: scrollY }, "", location.href);
+  history.pushState({ card: c.id }, "", `#c-${c.id}`);
+  show(c.id);
+}
+function show(id, smooth = true) {
+  const el = document.getElementById(`c-${id}`);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: smooth ? "smooth" : "instant", block: "center" });
+  el.classList.remove("flash"); void el.offsetWidth; el.classList.add("flash");
+  return true;
+}
+const hashCard = () => location.hash.startsWith("#c-") ? location.hash.slice(3) : null;
+addEventListener("popstate", e => {
+  if (e.state?.y != null) scrollTo({ top: e.state.y, behavior: "instant" });
+  else if (hashCard()) show(hashCard());
+});
+// Per-file buttons: reveal in the file manager of the machine running the feed, and copy the full path.
+let info = {};
+fetch("/info").then(r => r.json()).then(d => { info = d; document.querySelectorAll(".act.reveal").forEach(b => { b.title = `Show in ${d.reveal} on ${d.host}`; b.textContent = `📂 ${d.reveal}`; }); });
+const fullPath = p => p.startsWith("/") ? p : `${info.root}/${p}`;
+const winPath = p => p.startsWith("/") ? info.win_slash?.replace(/\\?$/, "\\") + p.slice(1).replaceAll("/", "\\") : `${info.win_root}\\${p.replaceAll("/", "\\")}`;
+function actions(path, blob) {
+  return h("div", { class: "acts" },
+    h("button", { class: "act reveal", title: `Show in ${info.reveal || "file manager"}`, onclick: () => revealFile(path, blob) }, `📂 ${info.reveal || ""}`),
+    h("button", { class: "act", title: "Copy path", onclick: () => copy(fullPath(path)) }, "⧉ path"),
+    info.win_root ? h("button", { class: "act", title: "Copy Windows path", onclick: () => copy(winPath(path)) }, "⧉ win") : null);
+}
+async function revealFile(path, blob) {
+  const r = await fetch("/reveal", { method: "POST", body: JSON.stringify({ path, blob }) }).then(r => r.json()).catch(() => ({}));
+  toast(r.ok ? `Opened ${info.reveal || "folder"} on ${info.host}${r.snapshot ? " (the file changed since — showing its saved snapshot)" : ""}` : `Couldn't open: ${r.error || "server unreachable"}`);
+}
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {                                   // plain-http pages have no clipboard API
+    const ta = h("textarea", {}, text); document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  toast(`Copied ${text}`);
+}
+function toast(msg) {
+  const el = $("#toast"); el.textContent = msg; el.classList.add("on");
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("on"), 2600);
+}
+
+function lightbox(src) { const lb = $("#lightbox"); lb.firstChild.src = src; lb.style.display = "flex"; }
+$("#lightbox").onclick = e => e.currentTarget.style.display = "none";
+
+function applyFilter(el) {
+  const ks = el.dataset.kinds.split(" ");
+  el.hidden = (filter !== "all" && !ks.includes(filter)) || (!$("#showRejected").checked && el.dataset.status === "rejected");
+}
+const FILTERS = [["all", "All"], ["image", "Images"], ["model", "3D"], ["audio", "Audio"], ["video", "Video"], ["note", "Notes"]];
+$("#filters").append(...FILTERS.map(([k, label]) => h("button", { class: `chip${k === filter ? " on" : ""}`, "data-k": k, onclick: () => {
+  filter = k;
+  const q = new URLSearchParams(location.search);
+  if (k === "all") q.delete("filter"); else q.set("filter", k);
+  history.replaceState(history.state, "", `${location.pathname}${q.size ? `?${q}` : ""}${location.hash}`);
+  document.querySelectorAll(".chip").forEach(b => b.classList.toggle("on", b.dataset.k === k));
+  document.querySelectorAll(".card").forEach(applyFilter);
+} }, label)));
+$("#showRejected").onchange = () => document.querySelectorAll(".card").forEach(applyFilter);
+
+function stats() {
+  const all = [...cards.values()];
+  const running = all.filter(c => c.pending).length;
+  const spend = {};
+  for (const c of all) for (const x of c.cost || []) spend[x.unit] = (spend[x.unit] || 0) + x.n;
+  const counts = {};
+  for (const c of all) for (const f of c.files || []) counts[f.kind] = (counts[f.kind] || 0) + 1;
+  const s = $("#stats"); s.replaceChildren(
+    h("span", { class: running ? "busy" : "" }, h("b", {}, running), " running"),
+    ...Object.entries(counts).map(([k, n]) => h("span", {}, h("b", {}, n), ` ${k}${n === 1 ? "" : "s"}`)),
+    ...Object.entries(spend).map(([u, n]) => h("span", {}, h("b", {}, +n.toFixed(2)), ` ${u} spent`)),
+    ...Object.entries(latestLeft).map(([u, b]) => h("span", { class: "left" }, h("b", {}, Math.round(b.n).toLocaleString()), ` ${u} left`)));
+}
+
+function showPill() {
+  const p = $("#newpill");
+  p.textContent = `↑ ${unseenNew} new`; p.style.display = "block";
+  p.onclick = () => { window.scrollTo({ top: 0, behavior: "smooth" }); };
+}
+addEventListener("scroll", () => { if (window.scrollY < 100) { unseenNew = 0; $("#newpill").style.display = "none"; } });
+
+setInterval(() => {
+  const now = Date.now() / 1000;
+  document.querySelectorAll(".pending").forEach(p => {
+    const el = now - +p.dataset.start, eta = +p.dataset.eta;
+    p.firstChild.textContent = `working… ${clock(el)}${eta ? ` / ~${clock(eta)}` : ""}`;
+    if (eta) p.lastChild.style.width = `${Math.min(97, 100 * el / eta)}%`;
+  });
+}, 1000);
+setInterval(() => document.querySelectorAll("[data-ago]").forEach(w => {
+  w.firstChild.textContent = ago(+w.dataset.ago) + (w.firstChild.textContent.match(/ · took .*/)?.[0] || "");
+}), 30000);
+
+// EventSource retries on its own only after a dropped connection; an error response (a proxy's 502 while the
+// server restarts) closes it for good, and a proxied stream can die silently. So: reconnect with backoff whenever
+// it closes, and whenever nothing (not even the 15 s ping) has arrived for 40 s.
+const PAGE = "{{PAGE}}";
+let es, lastMsg = Date.now(), backoff = 1000;
+function connect() {
+  const once = new URLSearchParams(location.search).has("once");
+  es = new EventSource(once ? "/events?once" : "/events");
+  if (once) es.addEventListener("message", m => { if (m.data.includes('"synced"')) es.close(); });
+  es.onopen = () => { $("#dot").classList.add("on"); backoff = 1000; lastMsg = Date.now(); };
+  es.onmessage = m => {
+    lastMsg = Date.now();
+    try {
+      const ev = JSON.parse(m.data);
+      if (ev.type === "hello") { if (ev.page !== PAGE && !once) reloadKeepingPlace(); return; }
+      apply(ev);
+    } catch (e) { console.error(e); }
+  };
+  es.onerror = () => {
+    $("#dot").classList.remove("on");
+    if (es.readyState === EventSource.CLOSED && !once) { setTimeout(connect, backoff); backoff = Math.min(backoff * 2, 15000); }
+  };
+}
+setInterval(() => {
+  if (es && es.readyState !== EventSource.CLOSED && Date.now() - lastMsg > 40000) { es.close(); $("#dot").classList.remove("on"); connect(); }
+}, 5000);
+function reloadKeepingPlace() {
+  try { sessionStorage.setItem("feed-scroll", String(scrollY)); } catch {}
+  location.reload();
+}
+addEventListener("load", () => {
+  let y = null;
+  try { y = sessionStorage.getItem("feed-scroll"); sessionStorage.removeItem("feed-scroll"); } catch {}
+  if (y) setTimeout(() => scrollTo({ top: +y, behavior: "instant" }), 1800);
+});
+connect();
+setTimeout(() => { if (!live) { live = true; render(); } }, 1500);   // an empty log never sends "synced"
+</script>
+</body>
+</html>

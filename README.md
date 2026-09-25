@@ -12,11 +12,13 @@ This repo is not a game. It is the source for a generator that produces games: *
 
 ## Source layout
 
-A published repo is intentionally thin: a runtime manifest, a one-page engine guide, and the asset-generation skill. The agent recreates everything else (project scaffold, capture tooling) from the guide.
+A published repo is intentionally thin: a runtime manifest, a one-page engine guide, the skills (asset generation, design critique, and the vendors' Tripo and ElevenLabs references), and — for Godot — a `tools/` folder. The agent recreates everything else (project scaffold, capture scripts) from the guide.
 
 - `prompts/runtime.md` — the runtime manifest
 - `asset-gen/` — the cross-engine asset-generation skill
 - `engines/babylon.md`, `engines/godot.md`, `engines/bevy.md` — per-engine guides
+- `engines/godot_tools/` — published as the game's `tools/`: `capture.py` records with the movie writer and reviews the clip (contact sheet, motion sheet, frozen/dark/pop detection, mp4); `AnimLab.cs` measures and fixes rigged animation clips; `Facing.cs` shows which way generated models face; `SceneKit.cs` holds the scene-builder helpers
+- `skills/`, `vendor/skills/` — the design-critique skill, and the vendors' Tripo and ElevenLabs skills (`vendor/sync.sh` refreshes them)
 - [publish.sh](publish.sh) — renders the runtime layout for the chosen engine and host agent
 
 Engine and host agent (Claude vs Codex) are publish-time render choices, not separate source trees.
@@ -36,13 +38,15 @@ Engine and host agent (Claude vs Codex) are publish-time render choices, not sep
 
 - [Godot 4](https://godotengine.org/download/) (.NET build) on `PATH` for Godot projects
 - Rust/Cargo for Bevy projects
-- Node.js 20+ and npm (22.12+ for Babylon.js projects), plus the Tripo CLI: `npm install -g tripo-cli`
+- Node.js 20+ and npm (22.12+ for Babylon.js projects), plus the Tripo and ElevenLabs CLIs: `npm install -g tripo-cli @elevenlabs/cli`
+- Git LFS — published repos commit generated assets through it
 - Chrome or Chromium with hardware WebGL2 for Babylon.js browser capture
-- Python 3 with pip
+- Python 3 with pip, and [uv](https://docs.astral.sh/uv/) for the Godot capture tool
 - API keys as environment variables:
   - `GOOGLE_API_KEY` — [Google AI Studio](https://aistudio.google.com/) for Gemini image generation
   - `XAI_API_KEY` — [xAI Grok](https://console.x.ai/home) for image generation and animated-sprite video (either image key is enough)
   - `TRIPO_API_KEY` — [Tripo](https://developers.tripo3d.ai/) for 3D generation (used by the `tripo` CLI)
+  - `ELEVENLABS_API_KEY` — [ElevenLabs](https://elevenlabs.io/app/settings/api-keys) for voices, sound effects, and music (optional)
 - System packages from [setup.md](setup.md): `vulkan-tools`, `xvfb`, `ffmpeg`, `imagemagick`, plus platform-specific extras
 - Tested on Ubuntu, Debian, and macOS
 - Claude Code or Codex
