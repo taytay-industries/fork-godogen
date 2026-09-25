@@ -107,11 +107,11 @@ Presets are generic stock clips. **Important:** when gameplay needs a custom hum
 
 ## Audio
 
-Voice lines, sound effects, music, and voice conversion come from ElevenLabs through `asset_gen.py speech | sfx | music | voice-change`, with `voices` to cast and `audio-status` to check the key. Read `${ASSET_GEN_SKILL_DIR}/audio.md` before generating any.
+Voice lines, sound effects, music, and voice conversion come from the official `elevenlabs` CLI (ElevenLabs), and every file goes through `tools/audio_prep.py` to convert it for the engine and catch silent intros, loops that swell, and uneven levels. Read `${ASSET_GEN_SKILL_DIR}/audio.md` before generating any.
 
 ## Costs
 
-Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model, ~25 to rig, ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate. ElevenLabs bills credits from the plan's monthly quota; audio commands report the `credits` each call used, and `audio-status` shows what is left.
+Paid generations cost real money, so confirm with the user before generating; `qwen-image` runs are free. Quick reference: 1K image 6–7¢ · 2K background 8–10¢ · a quality-critical image generated on both models ~13¢ · sprite video 14¢/s at 720p. Tripo bills in credits (≈1¢): ~30 per model, ~25 to rig, ~10 per retargeted clip — `tripo balance` before a batch, and report the `credits_consumed` the CLI returns rather than an estimate. ElevenLabs bills credits from the plan's monthly quota (sound effects ~10 per second); read usage before and after a batch (audio.md).
 
 ## Output and logging
 

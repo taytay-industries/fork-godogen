@@ -6,9 +6,9 @@
 - Capture size comes from `--size` through a temporary `override.cfg` (`window_width_override`); `--resolution` never reached the movie writer.
 
 **2026-09-24 — Audio (ElevenLabs)**
-- `asset-gen` generates audio through ElevenLabs: `asset_gen.py speech` (text to speech, `eleven_v3` by default), `sfx` (sound effects, optionally seamless loops), `music` (`music_v2`, optionally instrumental), and `voice-change` (re-voice a recorded performance), plus `voices` to cast and `audio-status` to check the key and credits left. Outputs are `.ogg`, `.wav`, or `.mp3` by extension; each call reports the credits it actually used.
-- `asset-gen/audio.md` covers casting a voice once per character, one file per dialogue line with neighbouring-line context, one-shot vs loop sound effects, take variation for repeated sounds, and music that plays under gameplay.
-- `ELEVENLABS_API_KEY` is optional; the SDK is in `asset-gen/tools/requirements.txt`.
+- `asset-gen` generates audio with the official `elevenlabs` CLI (`npm install -g @elevenlabs/cli`, `ELEVENLABS_API_KEY`): voice lines, sound effects (optionally seamless loops), music, and speech-to-speech re-voicing, with voices from the account or the shared library.
+- `tools/audio_prep.py` turns each generated file into the engine's `.ogg` / `.wav` / `.mp3` and checks it: trims leading silence from one-shots and music, reports how much a loop's loudness drifts across the clip and flattens it on request (`--flatten`, seam preserved), normalizes loudness (`--lufs`) with a peak ceiling, and warns about clicks, gaps, and clipping.
+- `asset-gen/audio.md` covers casting a voice once per character, one file per dialogue line with neighbouring-line context, one-shot vs loop sound effects, take variation for repeated sounds, music under gameplay, and measuring spend (the usage counter lags; the CLI hides the per-request cost).
 
 **2026-09-22 — Local image generation, current image models**
 - Added local image generation: when `qwen-image` is on PATH, `asset-gen` runs Qwen-Image-2.1 on the machine's GPU for free, so simple images (textures, props, icons, UI, backgrounds, in-image text) go there before the paid APIs; `qwen-image rgba` outputs real alpha with no matting. `setup.md` carries a brief for building the command on each machine.
