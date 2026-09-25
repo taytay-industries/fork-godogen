@@ -313,6 +313,7 @@ class Watcher(threading.Thread):
         self.seen = json.loads(self.state_file.read_text()) if self.state_file.exists() else None
         self.known: dict[str, set] = {}   # blob -> paths already logged
         self.open_jobs: dict[str, float] = {}
+        self.job_dirs: dict[str, tuple] = {}   # folder -> (job, finish time) of the latest job that wrote there
         self.offset = 0
         self.pending: dict[str, tuple] = {}
 
@@ -347,6 +348,8 @@ class Watcher(threading.Thread):
                     self.open_jobs[ev["job"]] = ev["t"]
                 if ev.get("type") == "done":
                     self.open_jobs.pop(ev.get("job"), None)
+                    for e in ev.get("files", []):
+                        self.job_dirs[str(Path(e["path"]).parent)] = (ev["job"], ev["t"])
                 for e in ev.get("files", []) + ev.get("from", []):
                     self.known.setdefault(e.get("blob"), set()).add(e["path"])
             self.offset = f.tell()
@@ -409,6 +412,9 @@ class Watcher(threading.Thread):
             emit({"type": "file", "title": f"{folder}/ ({len(images)} frames)", "sequence": len(images),
                   "files": [e for e in (snapshot(ROOT / p) for p in pick) if e]})
             paths = [p for p in paths if p not in images]
+        # A capture writes a browser-ready .mp4 next to its .ogv: the .ogv adds nothing.
+        if any(p.endswith(".mp4") for p in self.seen if str(Path(p).parent) == folder):
+            paths = [p for p in paths if not p.endswith(".ogv")]
         entries, copies = [], []
         for p in paths:
             e = snapshot(ROOT / p)
@@ -421,7 +427,10 @@ class Watcher(threading.Thread):
             self.known.setdefault(e["blob"], set()).add(p)
         for e in copies:
             emit({"type": "copy", "files": [e]})
-        if entries:
+        job = self.job_dirs.get(folder)
+        if entries and job and time.time() - job[1] < 120:     # the rest of what a job just wrote (a capture's sheets)
+            emit({"type": "attach", "job": job[0], "files": entries})
+        elif entries:
             emit({"type": "file", "title": entries[0]["path"] if len(entries) == 1 else f"{folder}/",
                   "files": entries, "watched": True})
 

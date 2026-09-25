@@ -174,6 +174,13 @@ function apply(ev) {
     }
     case "note":
       c = { ...ev, copies: {} }; cards.set(c.id, c); break;
+    case "attach": {
+      const oc = cards.get(ev.job);
+      if (!oc) return;
+      oc.files = [...(oc.files || []), ...ev.files];
+      for (const f of ev.files) byBlob.set(f.blob, oc.id);
+      return touch(oc);
+    }
     case "mark": {
       let oc = ev.blob && cards.get(byBlob.get(ev.blob));
       if (!oc) oc = [...cards.values()].reverse().find(x => (x.files || []).some(f => f.path === ev.path));
