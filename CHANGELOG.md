@@ -1,5 +1,8 @@
 # Changelog
 
+**2026-09-25 — Free asset libraries**
+- `asset-gen/tools/library.py` searches and downloads CC0 assets with no key: Poly Haven models (packed into one self-contained `.glb`), PBR textures, and HDRI skies, and ambientCG materials. `search --sheet` writes a labeled contact sheet of the candidates with real-world sizes; `get` records source, license, and author next to the file and logs to the asset feed.
+
 **2026-09-25 — Every game gets the whole toolkit**
 - Godot repos get `tools/AnimLab.cs` (measures rigged clips — drift, loop pops, freezes, foot slide, heading — and exports a clean GLB with the fixes baked in; takes a bare rig plus clip GLBs), `tools/Facing.cs` (which way each generated model faces), and `tools/SceneKit.cs` (measured GLB placement and the validated pack-and-save), next to `tools/capture.py`. Per-engine tools live in `engines/<engine>_tools/`.
 - Published repos carry the `game-design-critique` skill and the vendors' own skills for the CLIs asset-gen drives: ElevenLabs text-to-speech, sound effects, music, voice changer, speech-to-text, key setup, and Tripo (`vendor/sync.sh` refreshes them).

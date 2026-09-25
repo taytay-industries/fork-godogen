@@ -22,6 +22,21 @@ Generate PNG images (Gemini or xAI Grok), GLB 3D models (Tripo), and audio (Elev
 
 A free-tier Gemini key has no quota for the image model (every call returns `429 RESOURCE_EXHAUSTED`) — use `--model grok` then. Gemini and Grok are equally strong: both follow detailed prompts closely, and both slip on small details — a miscounted item, a mirrored left/right. Use whichever key is set; with both, `asset_gen.py` defaults to Gemini for speed. When an asset is quality-critical (a character reference that anchors 3D or animation, a hero image) and both keys are set, generate it with both and keep the better one.
 
+## Free libraries first
+
+Before paying to generate a common thing — a chair, a crate, a floor material, a sky — look for it in the free CC0 libraries. Generation stays the right call for anything that must match the game's own style (a family of assets from one reference image). Seamless PBR materials and HDRI skies are where the libraries clearly beat generation.
+
+```bash
+L="python3 ${ASSET_GEN_SKILL_DIR}/tools/library.py"
+$L search "office chair" --kind model --sheet refs/library/chairs.png   # look at the sheet, then pick by number
+$L get polyhaven:modern_arm_chair_01 -o ${RUNTIME_ASSET_DIR}/props/arm_chair.glb
+$L search "floor tiles" --kind texture          # Poly Haven + ambientCG
+$L get ambientcg:Tiles141 -o ${RUNTIME_ASSET_DIR}/textures/tiles/ --res 2k
+$L search "overcast sky" --kind hdri
+```
+
+Poly Haven models are photoreal, real-world scale (search prints meters), and arrive as one `.glb` facing +Z. Each download writes `<output>.source.json` with the page, license, and author; list the source in the README asset table.
+
 ## Images
 
 ```bash
