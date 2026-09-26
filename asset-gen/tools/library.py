@@ -27,7 +27,10 @@ from pathlib import Path
 
 import feed
 
+# Poly Haven's API terms: calls carry a user-agent naming this software, and anything that shows their content
+# names Poly Haven ("Powered by Poly Haven") without implying endorsement. The assets themselves are CC0.
 UA = {"User-Agent": "godogen-asset-library/1.0"}
+CREDIT = {"polyhaven": "Powered by Poly Haven (polyhaven.com)", "ambientcg": "Assets from ambientCG (ambientcg.com)"}
 CACHE = Path.home() / ".cache" / "godogen"
 PH_TYPES = {"model": "models", "texture": "textures", "hdri": "hdris"}
 ACG_TYPES = {"texture": "Material", "hdri": "HDRI"}
@@ -103,7 +106,7 @@ def contact_sheet(results: list[dict], out: Path, cols: int = 4, cell: int = 256
     from PIL import Image, ImageDraw, ImageFont
     font = ImageFont.load_default(size=15)
     rows = (len(results) + cols - 1) // cols
-    sheet = Image.new("RGB", (cols * cell, rows * (cell + 34)), (24, 26, 32))
+    sheet = Image.new("RGB", (cols * cell, rows * (cell + 34) + 26), (24, 26, 32))
     draw = ImageDraw.Draw(sheet)
     for i, r in enumerate(results):
         x, y = (i % cols) * cell, (i // cols) * (cell + 34)
@@ -117,6 +120,8 @@ def contact_sheet(results: list[dict], out: Path, cols: int = 4, cell: int = 256
         size = " x ".join(f"{d:g}" for d in r["size_m"]) + " m" if r.get("size_m") else ""
         draw.text((x + 6, y + cell + 1), f"{i + 1}. {r['id'].split(':', 1)[1]}"[:30], fill=(235, 235, 240), font=font)
         draw.text((x + 6, y + cell + 17), size, fill=(150, 200, 255), font=font)
+    sources = sorted({r["id"].split(":")[0] for r in results})
+    draw.text((6, rows * (cell + 34) + 5), " · ".join(CREDIT[s] for s in sources) + " · CC0", fill=(170, 170, 180), font=font)
     out.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out)
 
@@ -138,6 +143,7 @@ def cmd_search(a):
     if a.json:
         print(json.dumps(results, indent=1))
     else:
+        print(" · ".join(CREDIT[s] for s in sources) + " — all CC0")
         for i, r in enumerate(results, 1):
             size = "×".join(f"{d:g}" for d in r["size_m"]) + " m" if r.get("size_m") else "-"
             print(f"{i:2}. {r['id']:<42} {r['name'][:34]:<34} {size:<18} {r['author'][:30]}")
@@ -146,7 +152,7 @@ def cmd_search(a):
         contact_sheet(results, sheet)
         print(f"sheet {sheet}", file=sys.stderr)
         job = feed.start(f"library search: {a.query}", tool=f"library ({', '.join(sources)})",
-                         prompt=f'{a.kind}: "{a.query}" — {len(results)} candidates')
+                         prompt=f'{a.kind}: "{a.query}" — {len(results)} candidates\n' + " · ".join(CREDIT[s] for s in sources))
         feed.done(job, files=[sheet], log="\n".join(f"{i}. {r['id']}  {r['name']}" for i, r in enumerate(results, 1)))
     if not results:
         sys.exit(1)
@@ -261,7 +267,7 @@ def cmd_get(a):
     if not getter or not aid:
         sys.exit("id must be polyhaven:<id> or ambientcg:<id> (as printed by search)")
     out = Path(a.output)
-    job = feed.start(out.name, tool=f"library ({source})", prompt=f"{a.id}", eta=15)
+    job = feed.start(out.name, tool=f"library ({source})", prompt=f"{a.id}\n{CREDIT[source]}", eta=15)
     try:
         written, meta = getter(aid, out, a.res)
     except Exception as e:
@@ -276,7 +282,8 @@ def cmd_get(a):
         preview.write_bytes(fetch(meta["thumb"], 20))
     except Exception:
         preview = None
-    feed.done(job, files=[*written, preview], log=f"{meta['name']} — {meta['license']}, by {meta['author']}\n{meta['page']}")
+    feed.done(job, files=[*written, preview],
+              log=f"{meta['name']} — {meta['license']}, by {meta['author']}\n{meta['page']}\n{CREDIT[source]}")
     print(json.dumps({"ok": True, "files": [str(p) for p in written], "source": str(record), **meta}))
 
 
